@@ -20,12 +20,14 @@ Boxed sets:
 - Warhammer 40,000: Armageddon $353 [11th-edition launch box — Space Marines vs Orks, terrain, rules, dice, mats; two-player game-in-a-box; NO paints/tools]
 Combat Patrol boxes $239 each [single-faction force — NO paints/tools]. Range rotates; typical factions:
   Space Marines, Dark Angels, Blood Angels, Space Wolves, Deathwatch, Grey Knights, Adeptus Custodes, Adepta Sororitas, Astra Militarum, Adeptus Mechanicus, Imperial Knights, Chaos Space Marines, Death Guard, Thousand Sons, World Eaters, Emperor's Children, Chaos Daemons, Chaos Knights, Orks, Necrons, Tyranids, Genestealer Cults, Aeldari, Drukhari, T'au Empire, Leagues of Votann.
+Battleforce boxes $319 each [large-value single-faction box, seasonal availability — NO paints/tools]. Same faction range as Combat Patrol.
 
 WARHAMMER: AGE OF SIGMAR (4th Edition)
 Boxed sets:
 - Warhammer Age of Sigmar: Skaventide $353 [4th-edition launch box — Stormcast Eternals vs Skaven, terrain, rules; two-player game-in-a-box; NO paints/tools]
 Spearhead boxes $99 each [single-faction force for the Spearhead game mode — NO paints/tools]. Factions:
   Stormcast Eternals, Cities of Sigmar, Daughters of Khaine, Fyreslayers, Idoneth Deepkin, Kharadron Overlords, Lumineth Realm-lords, Seraphon, Sylvaneth, Blades of Khorne, Disciples of Tzeentch, Hedonites of Slaanesh, Maggotkin of Nurgle, Skaven, Slaves to Darkness, Flesh-eater Courts, Nighthaunt, Ossiarch Bonereapers, Soulblight Gravelords, Gloomspite Gitz, Orruk Warclans, Ogor Mawtribes, Sons of Behemat.
+Battleforce boxes $319 each [large-value single-faction box, seasonal — NO paints/tools]. Same faction range as Spearhead.
 
 WARHAMMER: THE OLD WORLD [all NO paints/tools]
 - The Old World Core Set $230 [two-army box — Grand Cathay vs Warriors of Chaos, rulebook, mat, templates, dice]
@@ -87,7 +89,8 @@ TCG ACCESSORIES
 ESSENTIALS GUIDANCE:
 - A complete start = minis PLUS paints, a brush, plastic glue and clippers.
 - The 40K Introductory Set already includes paints & tools — add only plastic glue if anything; never add a paint set or Tools Set to it.
-- A bare Combat Patrol, Spearhead, Old World box, launch box (Armageddon/Skaventide), or specialist boxed game includes none — add a Faction Paint Set (or the Warhammer 40,000 Paints + Tools Set), a Warhammer Tools Set and plastic glue.
+- A bare Combat Patrol, Battleforce, Spearhead, Old World box, launch box (Armageddon/Skaventide), or specialist boxed game includes none — add a Faction Paint Set (or the Warhammer 40,000 Paints + Tools Set), a Warhammer Tools Set and plastic glue.
+- Offer variety: name the faction-specific box (e.g. Combat Patrol: Necrons, Spearhead: Nighthaunt, a faction Battleforce) rather than a generic starter, and suggest a cheaper or bigger option when it helps.
 - TCG: core product PLUS deck sleeves at minimum; deck box/playmat only if budget allows.`;
 
 const DEMO_MODE =
@@ -125,10 +128,13 @@ function demoReply(messages) {
   const budget = bMatch ? Number(bMatch[1]) : null;
   const note = "\n\n(Demo mode: scripted reply — add an ANTHROPIC_API_KEY for full conversational AI.)";
 
+  const fmt = (items) => items.map(([n, p]) => `• ${n} — $${p}`).join("\n");
+  const sum = (items) => items.reduce((n, [, p]) => n + p, 0);
+
   const g =
-    /old world|bretonnia|tomb kings/.test(t) ? "old" :
-    /sigmar|stormcast|nighthaunt|skaven/.test(t) ? "aos" :
-    /40k|40,?000|space marine|\bork/.test(t) ? "40k" :
+    /old world|bretonnia|tomb kings|grand cathay/.test(t) ? "old" :
+    /sigmar|stormcast|nighthaunt|skaven|spearhead/.test(t) ? "aos" :
+    /40k|40,?000|space marine|\bork|combat patrol|battleforce/.test(t) ? "40k" :
     /magic|mtg|commander/.test(t) ? "mtg" :
     /pok[eé]mon|pokemon/.test(t) ? "pkm" :
     null;
@@ -141,21 +147,60 @@ function demoReply(messages) {
     return `Great choice — ${label} is a fantastic place to start. Roughly what budget are you working with, and would you like everything needed to paint the models too?` + note;
   }
 
-  let items;
-  if (g === "40k") items = [["40K Introductory Set", 111], ["Plastic glue", 11]];
-  else if (g === "aos") items = [["Spearhead: Stormcast Eternals", 99], ["Faction Paint Set", 54], ["Warhammer Tools Set", 28], ["Plastic glue", 11]];
-  else if (g === "old") items = [["Old World Battalion: starter army", 150], ["Faction Paint Set", 54], ["Warhammer Tools Set", 28], ["Plastic glue", 11]];
-  else if (g === "mtg") items = [["MTG Starter Kit", 30], ["Deck sleeves (100)", 9]];
-  else items = [["Pokemon Battle Academy", 50], ["Deck sleeves (100)", 9]];
-
-  const total = items.reduce((n, [, p]) => n + p, 0);
-  const lines = items.map(([n, p]) => `• ${n} — $${p}`).join("\n");
-  const playOrPaint = g === "mtg" || g === "pkm" ? "play" : "build and paint";
-
-  if (total > budget) {
-    return `For ${label}, the most affordable complete starter I'd recommend comes to about $${total}, just over your $${budget}. If you can stretch to ~$${total}:\n${lines}\nOtherwise tell me and I'll find the closest cheaper entry point.` + note;
+  // Trading card games
+  if (g === "mtg" || g === "pkm") {
+    const core = g === "mtg" ? ["MTG Starter Kit", 30] : ["Pokemon Battle Academy", 50];
+    const items = [core, ["Deck sleeves (100)", 9]];
+    const total = sum(items);
+    if (total > budget) {
+      return `The most affordable ${label} starter I'd suggest is about $${total}, just over your $${budget}:\n${fmt(items)}\nStretch a little and you're set — or tell me and I'll trim it.` + note;
+    }
+    const alt = g === "mtg" ? "a Commander Deck ($60) for one big ready-to-play deck" : "an Elite Trainer Box ($70) for more cards, sleeves and accessories";
+    return `Here's a solid ${label} starter within your $${budget} budget:\n${fmt(items)}\n\nTotal: $${total} — everything to start playing. Want more? Add ${alt}. Every bundle is staff-reviewed. Want me to adjust anything?` + note;
   }
-  return `Here's a solid starter for ${label}, within your $${budget} budget:\n${lines}\n\nTotal: $${total} — that gets you everything to ${playOrPaint}. Every bundle is checked by our staff before purchase. Want me to adjust anything?` + note;
+
+  // Warhammer — faction-aware, with a range of box options.
+  const FACTIONS = {
+    "40k": ["Space Marines", "Blood Angels", "Dark Angels", "Space Wolves", "Grey Knights", "Adeptus Custodes", "Adepta Sororitas", "Astra Militarum", "Adeptus Mechanicus", "Imperial Knights", "Chaos Space Marines", "Death Guard", "Thousand Sons", "World Eaters", "Chaos Daemons", "Chaos Knights", "Orks", "Necrons", "Tyranids", "Genestealer Cults", "Aeldari", "Drukhari", "T'au Empire", "Leagues of Votann"],
+    "aos": ["Stormcast Eternals", "Cities of Sigmar", "Daughters of Khaine", "Fyreslayers", "Idoneth Deepkin", "Kharadron Overlords", "Lumineth Realm-lords", "Seraphon", "Sylvaneth", "Blades of Khorne", "Disciples of Tzeentch", "Hedonites of Slaanesh", "Maggotkin of Nurgle", "Skaven", "Slaves to Darkness", "Flesh-eater Courts", "Nighthaunt", "Ossiarch Bonereapers", "Soulblight Gravelords", "Gloomspite Gitz", "Orruk Warclans", "Ogor Mawtribes", "Sons of Behemat"],
+    "old": ["Kingdom of Bretonnia", "Tomb Kings of Khemri", "Empire of Man", "Grand Cathay", "Dwarfen Mountain Holds", "High Elf Realms", "Wood Elf Realms", "Orc & Goblin Tribes", "Warriors of Chaos", "Beastmen Brayherds"],
+  };
+  const faction = FACTIONS[g].find((f) => t.includes(f.toLowerCase())) || null;
+  const fac = faction || "your chosen faction";
+  const ess = [["Faction Paint Set", 54], ["Warhammer Tools Set", 28], ["Plastic glue", 11]];
+  const essCost = 93;
+
+  // Faction-specific core boxes, cheapest first.
+  let cores;
+  if (g === "40k") cores = [["Combat Patrol: " + fac, 239], ["Battleforce: " + fac, 319]];
+  else if (g === "aos") cores = [["Spearhead: " + fac, 99], ["Battleforce: " + fac, 319]];
+  else {
+    cores = [[fac + " starter box", 150]];
+    if (faction === "Kingdom of Bretonnia" || faction === "Tomb Kings of Khemri") cores.push(["Old World Army Set: " + fac, 230]);
+  }
+
+  const bundles = cores.map((c) => ({ core: c, items: [c, ...ess], total: c[1] + essCost }));
+  const fit = bundles.filter((b) => b.total <= budget).sort((a, b) => b.total - a.total);
+
+  if (fit.length) {
+    const pick = fit[0];
+    const pricier = bundles.filter((b) => b.total > pick.total).sort((a, b) => a.total - b.total)[0];
+    const cheaper = bundles.filter((b) => b.total < pick.total).sort((a, b) => b.total - a.total)[0];
+    let alt = "";
+    if (pricier) alt = `\nWant a bigger force? ${pricier.core[0]} brings it to $${pricier.total}.`;
+    else if (cheaper) alt = `\nOn a tighter budget, ${cheaper.core[0]} keeps it to $${cheaper.total}.`;
+    return `Here's a ${label} force for ${faction || "your faction"} within your $${budget} budget:\n${fmt(pick.items)}\n\nTotal: $${pick.total} — the box plus paints, tools and glue to build and paint it.${alt}\nEvery bundle is staff-reviewed. Want me to adjust anything?` + note;
+  }
+
+  // Nothing fits. For 40K the Introductory Set is a cheap, paints-included entry.
+  if (g === "40k") {
+    const intro = [["40K Introductory Set", 111], ["Plastic glue", 11]];
+    if (sum(intro) <= budget) {
+      return `A full ${fac} force runs about $${bundles[0].total} (Combat Patrol + paints & tools), just over your $${budget}. To start within budget, the 40K Introductory Set is ideal — 16 push-fit minis with paints and tools included:\n${fmt(intro)}\n\nTotal: $${sum(intro)}. Add a Combat Patrol: ${fac} ($239) when you're ready to grow. Want me to adjust anything?` + note;
+    }
+  }
+  const cheapest = bundles.sort((a, b) => a.total - b.total)[0];
+  return `A complete ${label} starter for ${fac} comes to about $${cheapest.total} (${cheapest.core[0]} plus paints, tools and glue), above your $${budget}. Nudge the budget to ~$${cheapest.total}, or I can suggest a smaller box — just say the word.` + note;
 }
 
 export default async function handler(req, res) {
