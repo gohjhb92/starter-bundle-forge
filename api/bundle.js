@@ -38,7 +38,48 @@ RULES:
 Respond with ONLY a JSON object, no markdown fences, no text before or after:
 {"hobby":"40K|Age of Sigmar|Magic|Pokemon|Unclear","interest":"faction/theme or no preference","budget":number-or-null,"items":[{"name":"catalogue name","price":number}],"total":number,"withinBudget":boolean,"note":"one line, no line breaks","status":"ready|draft"}`;
 
-const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+// When there's no API key (or DEMO_MODE is set), the function serves sample bundles
+// so the prototype runs end-to-end with no Anthropic call and no cost. A real key
+// makes it call the model as normal; the client is created lazily in the handler.
+const DEMO_MODE =
+  !process.env.ANTHROPIC_API_KEY ||
+  process.env.DEMO_MODE === "1" ||
+  process.env.DEMO_MODE === "true";
+
+// Catalogue-accurate sample bundle built with simple rules (no LLM). Prices match
+// the catalogue above and the essentials logic mirrors the SYSTEM_PROMPT rules.
+function mockRaw(request) {
+  const t = String(request).toLowerCase();
+  const m = t.match(/\$\s*(\d{1,5})/);
+  const budget = m ? Number(m[1]) : null;
+
+  const PAINTS = { name: "Faction Paint Set", price: 54 };
+  const TOOLS = { name: "Warhammer Tools Set", price: 28 };
+  const GLUE = { name: "Plastic glue", price: 11 };
+  const SLEEVES = { name: "Deck sleeves (100)", price: 9 };
+  const out = (o) => JSON.stringify(o);
+
+  let hobby, kind, core;
+  if (/old world/.test(t)) { hobby = "The Old World"; kind = "wh-bare"; core = { name: "Old World Battalion: starter army", price: 150 }; }
+  else if (/sigmar/.test(t)) { hobby = "Age of Sigmar"; kind = "wh-bare"; core = { name: "Spearhead: starter force", price: 215 }; }
+  else if (/40k|40,000|40 000|warhammer 40/.test(t)) { hobby = "40K"; kind = "wh-complete"; core = { name: "40K Introductory Set", price: 111 }; }
+  else if (/magic|mtg/.test(t)) { hobby = "Magic"; kind = "tcg"; core = { name: "MTG Starter Kit", price: 30 }; }
+  else if (/pok[eé]mon/.test(t)) { hobby = "Pokemon"; kind = "tcg"; core = { name: "Pokemon Battle Academy", price: 50 }; }
+  else return out({ hobby: "Unclear", interest: "no preference", budget, items: [], total: 0, withinBudget: false, note: "Which game — 40K, Age of Sigmar, Old World, Magic or Pokemon? And what's the budget?", status: "draft" });
+
+  if (budget == null) return out({ hobby, interest: "no preference", budget: null, items: [], total: 0, withinBudget: false, note: "Tell me the budget and who it's for, and I'll assemble a bundle.", status: "draft" });
+
+  let items;
+  if (kind === "tcg") items = [core, SLEEVES];
+  else if (kind === "wh-complete") items = [core, GLUE];   // set already includes paints/tools
+  else items = [core, PAINTS, TOOLS, GLUE];                // bare force needs paints/tools/glue
+  const total = items.reduce((n, it) => n + it.price, 0);
+
+  if (total > budget) {
+    return out({ hobby, interest: "no preference", budget, items: [], total: 0, withinBudget: false, note: `A complete beginner setup here starts at $${total}, above the $${budget} budget. Raise it to about $${total}, or ask staff for a cheaper entry point.`, status: "draft" });
+  }
+  return out({ hobby, interest: "no preference", budget, items, total, withinBudget: true, note: "Complete beginner setup — minis plus what's needed to build and paint. Staff-reviewed before purchase.", status: "ready" });
+}
 
 // Basic in-memory per-IP rate limit. NOTE: serverless instances are ephemeral and
 // NOT shared, so this counter resets on cold starts and doesn't coordinate across
@@ -79,6 +120,14 @@ export default async function handler(req, res) {
       res.status(400).json({ error: "Provide a request string under 2000 characters." });
       return;
     }
+
+    // No key / DEMO_MODE: serve a sample bundle, no API call, no cost.
+    if (DEMO_MODE) {
+      res.status(200).json({ raw: mockRaw(request), demo: true });
+      return;
+    }
+
+    const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
     const message = await anthropic.messages.create({
       model: "claude-haiku-4-5-20251001", // lower cost per call; this structured task runs fine on it. Verify current IDs at the docs link in README.
       max_tokens: 1000,
@@ -89,7 +138,7 @@ export default async function handler(req, res) {
       .filter((b) => b.type === "text")
       .map((b) => b.text)
       .join("\n");
-    res.status(200).json({ raw });
+    res.status(200).json({ raw, demo: false });
   } catch (e) {
     res.status(500).json({ error: "Generation failed. Check the server logs and your ANTHROPIC_API_KEY." });
   }

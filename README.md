@@ -64,6 +64,13 @@ switch to `claude-sonnet-5`. Confirm the current model IDs at
 https://docs.claude.com/en/docs/about-claude/models before deploying, since
 model names change.
 
+## Demo mode (no API key, no cost)
+If `ANTHROPIC_API_KEY` is **not set** (or `DEMO_MODE=1`), `/api/bundle` skips the
+Anthropic call and returns a catalogue-accurate **sample** bundle assembled with
+simple rules — so you can deploy and demo the whole flow for free. The UI shows a
+small **"Demo · no AI"** badge so sample data is never mistaken for live output.
+Set a real `ANTHROPIC_API_KEY` to switch to genuine AI responses automatically.
+
 ## Editing the catalogue
 The catalogue and rules live in the `SYSTEM_PROMPT` string at the top of
 `api/bundle.js`. Update prices/products there. Keep the JSON output shape the

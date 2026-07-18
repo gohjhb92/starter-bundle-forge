@@ -31,6 +31,7 @@ export default function App() {
   const [result, setResult] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
+  const [demo, setDemo] = useState(false);
 
   const selected = GAMES.find((g) => g.value === game);
 
@@ -45,7 +46,7 @@ export default function App() {
 
   async function assemble() {
     if (!game || loading) return;
-    setLoading(true); setError(null); setResult(null);
+    setLoading(true); setError(null); setResult(null); setDemo(false);
     try {
       const res = await fetch("/api/bundle", {
         method: "POST",
@@ -58,7 +59,9 @@ export default function App() {
         return;
       }
       const clean = String(data.raw || "").replace(/```json/gi, "").replace(/```/g, "").trim();
-      setResult(JSON.parse(clean));
+      const parsed = JSON.parse(clean);
+      setDemo(Boolean(data.demo));
+      setResult(parsed);
     } catch (e) {
       setError("Couldn't read a bundle back. Try again, or adjust the game and budget.");
     } finally {
@@ -155,6 +158,9 @@ export default function App() {
             <div className="flex items-center gap-2 border-b border-stone-300 px-4 py-3">
               <ScrollText size={15} className="text-stone-500" />
               <span className="text-xs font-semibold uppercase tracking-widest text-stone-500">Requisition</span>
+              {demo && (
+                <span className="ml-auto rounded-full bg-amber-200 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-widest text-amber-800">Demo · no AI</span>
+              )}
             </div>
             <div className="px-4 py-4">
               {!result && !loading && !error && (
