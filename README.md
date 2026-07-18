@@ -1,8 +1,8 @@
 # The Quartermaster — Starter Bundle Builder
 
-An AI-powered beginner starter-bundle builder for a Warhammer & TCG hobby store.
-A customer's request goes in; a budget-checked bundle from the store catalogue
-comes back. React front-end + one serverless function that calls Claude.
+An AI chat assistant for a Warhammer & TCG hobby store. Customers chat with "The
+Quartermaster", which recommends a budget-checked beginner bundle from the store
+catalogue. React chat front-end + one serverless function that calls Claude.
 
 **Architecture (why it's built this way):** the Anthropic API key is a secret and
 must never reach the browser. So the React app never calls Anthropic directly —
@@ -73,8 +73,11 @@ Set a real `ANTHROPIC_API_KEY` to switch to genuine AI responses automatically.
 
 ## Editing the catalogue
 The catalogue and rules live in the `SYSTEM_PROMPT` string at the top of
-`api/bundle.js`. Update prices/products there. Keep the JSON output shape the
-same or the front-end won't render it.
+`api/bundle.js` — combat patrols, spearheads, boxes, paints, tools and TCG
+products. Update prices/products there. The assistant replies in plain
+conversational text, so there's no output shape to keep in sync. The scripted
+`demoReply` fallback lower in the file only covers a few sample bundles — a real
+API key gives the full catalogue-aware conversation.
 
 ## Using Claude Code on this repo
 From this folder, run `claude`, then try:

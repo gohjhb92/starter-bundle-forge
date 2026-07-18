@@ -1,110 +1,71 @@
-import { useState } from "react";
-import { Hammer, ArrowRight, ScrollText, ShieldCheck, TriangleAlert, Coins, Loader } from "lucide-react";
+import { useState, useRef, useEffect } from "react";
+import { Hammer, Send, Loader, Sparkles } from "lucide-react";
 
-// value is what we send to the model (must match the catalogue wording in api/bundle.js);
-// label is what the shopkeeper sees; faction is the placeholder hint for the interest field.
-const GAMES = [
-  { value: "Warhammer 40,000", label: "Warhammer 40,000 (11th Ed.)", faction: "e.g. Space Marines, Orks — or leave blank", stocked: true },
-  { value: "Age of Sigmar", label: "Warhammer: Age of Sigmar", faction: "e.g. Stormcast Eternals — or leave blank", stocked: true },
-  { value: "The Old World", label: "Warhammer: The Old World", faction: "e.g. Empire, Orcs & Goblins — or leave blank", stocked: true },
-  { value: "Magic: The Gathering", label: "Magic: The Gathering", faction: "e.g. a colour or archetype — or leave blank", stocked: true },
-  { value: "Pokémon TCG", label: "Pokémon TCG", faction: "e.g. a favourite Pokémon — or leave blank", stocked: true },
-  { value: "Not sure yet", label: "Not sure yet", faction: "Tell us what they enjoy", stocked: true },
+const GREETING =
+  "Welcome to Bastion Wargames — I'm the Quartermaster. Tell me who I'm kitting out: which game (Warhammer 40,000, Age of Sigmar, The Old World, Magic, Pokémon…), any faction or theme they fancy, and a rough budget. New to the hobby? I'll make sure you leave with everything needed to build and paint.";
+
+const SUGGESTIONS = [
+  "My son wants to start 40k Space Marines, budget ~$150",
+  "I want to get into Magic with friends, under $50",
+  "A complete Old World Empire army to paint, around $250",
+  "What do I need to start Age of Sigmar?",
 ];
-
-const PRESETS = [
-  { label: "40k Space Marines · $150", game: "Warhammer 40,000", faction: "Space Marines", budget: "150" },
-  { label: "Magic · under $50", game: "Magic: The Gathering", faction: "", budget: "50" },
-  { label: "Old World · $150", game: "The Old World", faction: "", budget: "150" },
-  { label: "Vague 40k ask", game: "Warhammer 40,000", faction: "", budget: "" },
-];
-
-// Factions per Game System — drive the dependent "Faction / interest" dropdown.
-// For the TCGs these are colours / types rather than factions.
-const FACTIONS = {
-  "Warhammer 40,000": [
-    "Space Marines", "Blood Angels", "Dark Angels", "Space Wolves", "Grey Knights",
-    "Adeptus Custodes", "Adepta Sororitas", "Astra Militarum", "Adeptus Mechanicus", "Imperial Knights",
-    "Chaos Space Marines", "Death Guard", "Thousand Sons", "World Eaters", "Chaos Daemons", "Chaos Knights",
-    "Orks", "Necrons", "Tyranids", "Genestealer Cults", "Aeldari", "Drukhari", "T'au Empire", "Leagues of Votann",
-  ],
-  "Age of Sigmar": [
-    "Stormcast Eternals", "Cities of Sigmar", "Daughters of Khaine", "Fyreslayers", "Idoneth Deepkin",
-    "Kharadron Overlords", "Lumineth Realm-lords", "Seraphon", "Sylvaneth",
-    "Blades of Khorne", "Disciples of Tzeentch", "Hedonites of Slaanesh", "Maggotkin of Nurgle", "Skaven", "Slaves to Darkness",
-    "Flesh-eater Courts", "Nighthaunt", "Ossiarch Bonereapers", "Soulblight Gravelords",
-    "Gloomspite Gitz", "Orruk Warclans", "Ogor Mawtribes", "Sons of Behemat",
-  ],
-  "The Old World": [
-    "Kingdom of Bretonnia", "Tomb Kings of Khemri", "Empire of Man", "Dwarfen Mountain Holds",
-    "High Elf Realms", "Wood Elf Realms", "Dark Elves", "Orc & Goblin Tribes",
-    "Warriors of Chaos", "Beastmen Brayherds", "Vampire Counts", "Skaven",
-  ],
-  "Magic: The Gathering": ["White", "Blue", "Black", "Red", "Green", "Multicolour"],
-  "Pokémon TCG": ["Fire", "Water", "Grass", "Lightning", "Psychic", "Fighting", "Darkness", "Metal", "Dragon", "Colorless"],
-  "Not sure yet": [],
-};
-
-const FIELD =
-  "mt-2 w-full rounded-sm border border-stone-700 bg-stone-100 px-4 py-3 text-base text-stone-900 placeholder:text-stone-500 focus:border-amber-500 focus:outline-none focus:ring-1 focus:ring-amber-500 disabled:cursor-not-allowed disabled:opacity-50";
-const LABEL = "text-xs font-semibold uppercase tracking-widest text-stone-400";
 
 export default function App() {
-  const [game, setGame] = useState("");
-  const [faction, setFaction] = useState("");
-  const [budget, setBudget] = useState("");
-  const [notes, setNotes] = useState("");
-  const [result, setResult] = useState(null);
+  const [messages, setMessages] = useState([{ role: "assistant", content: GREETING }]);
+  const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [demo, setDemo] = useState(false);
+  const logRef = useRef(null);
+  const taRef = useRef(null);
 
-  const selected = GAMES.find((g) => g.value === game);
+  useEffect(() => {
+    const el = logRef.current;
+    if (el) el.scrollTop = el.scrollHeight;
+  }, [messages, loading]);
 
-  function buildRequest() {
-    const parts = [];
-    parts.push(game === "Not sure yet" ? "I'm not sure which game to start." : `I want to start ${game}.`);
-    if (faction.trim()) parts.push(`I'm interested in ${faction.trim()}.`);
-    parts.push(budget ? `My budget is around $${budget}.` : "I haven't settled on a budget yet.");
-    if (notes.trim()) parts.push(notes.trim());
-    return parts.join(" ");
-  }
-
-  async function assemble() {
-    if (!game || loading) return;
-    setLoading(true); setError(null); setResult(null); setDemo(false);
+  async function send(text) {
+    const content = (text ?? input).trim();
+    if (!content || loading) return;
+    const next = [...messages, { role: "user", content }];
+    setMessages(next);
+    setInput("");
+    setError(null);
+    setLoading(true);
     try {
       const res = await fetch("/api/bundle", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ request: buildRequest() }),
+        // Drop the client-side greeting (index 0) so the thread starts with the user.
+        body: JSON.stringify({ messages: next.slice(1) }),
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
-        setError(data.error || "Couldn't reach the catalogue. Try again in a moment.");
+        setError(data.error || "Something went wrong. Please try again.");
         return;
       }
-      const clean = String(data.raw || "").replace(/```json/gi, "").replace(/```/g, "").trim();
-      const parsed = JSON.parse(clean);
       setDemo(Boolean(data.demo));
-      setResult(parsed);
+      setMessages((m) => [...m, { role: "assistant", content: String(data.reply || "…") }]);
     } catch (e) {
-      setError("Couldn't read a bundle back. Try again, or adjust the game and budget.");
+      setError("Couldn't reach the Quartermaster. Please try again.");
     } finally {
       setLoading(false);
     }
   }
 
-  function loadPreset(p) {
-    setGame(p.game); setFaction(p.faction); setBudget(p.budget);
-    setResult(null); setError(null);
+  function onKey(e) {
+    if (e.key === "Enter" && !e.shiftKey) {
+      e.preventDefault();
+      send();
+    }
   }
-  function onKey(e) { if ((e.metaKey || e.ctrlKey) && e.key === "Enter") assemble(); }
 
   return (
-    <div className="min-h-screen w-full bg-neutral-950 text-stone-200 font-sans">
-      <div className="mx-auto max-w-5xl px-5 py-8">
-        <div className="flex items-center gap-3 border-b border-amber-900 pb-5">
+    <div className="flex min-h-screen w-full flex-col bg-neutral-950 text-stone-200 font-sans">
+      <div className="mx-auto flex w-full max-w-3xl flex-1 flex-col px-4 py-6">
+        {/* Header */}
+        <div className="flex items-center gap-3 border-b border-amber-900 pb-4">
           <div className="grid h-11 w-11 place-items-center rounded-sm bg-amber-600 text-neutral-950 shadow-inner">
             <Hammer size={22} strokeWidth={2.4} />
           </div>
@@ -112,170 +73,84 @@ export default function App() {
             <div className="text-xs font-semibold uppercase tracking-widest text-amber-500">Bastion Wargames · Singapore</div>
             <h1 className="font-serif text-2xl font-bold leading-tight text-stone-100">The Quartermaster</h1>
           </div>
-          <div className="ml-auto hidden text-right text-xs uppercase tracking-widest text-stone-500 sm:block">Beginner<br />bundle builder</div>
+          {demo && (
+            <span className="ml-auto inline-flex items-center gap-1 rounded-full bg-amber-200 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-widest text-amber-800">
+              <Sparkles size={11} /> Demo · no AI
+            </span>
+          )}
         </div>
 
-        <div className="mt-7 grid gap-6 md:grid-cols-2">
-          <div>
-            <label className={LABEL} htmlFor="game">Game system</label>
-            <select
-              id="game" value={game} onKeyDown={onKey}
-              onChange={(e) => { setGame(e.target.value); setFaction(""); setResult(null); setError(null); }}
-              className={FIELD}
-            >
-              <option value="" disabled>Choose a game…</option>
-              {GAMES.map((g) => (
-                <option key={g.value} value={g.value}>{g.label}</option>
-              ))}
-            </select>
-
-            <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
-              <div>
-                <label className={LABEL} htmlFor="faction">Faction / interest <span className="font-normal normal-case tracking-normal text-stone-500">(optional)</span></label>
-                {game ? (
-                  <select id="faction" value={faction} onKeyDown={onKey}
-                    onChange={(e) => setFaction(e.target.value)} className={FIELD}>
-                    <option value="">No preference</option>
-                    {(FACTIONS[game] || []).map((f) => (
-                      <option key={f} value={f}>{f}</option>
-                    ))}
-                  </select>
-                ) : (
-                  <select id="faction" disabled className={FIELD}>
-                    <option>Pick a game first</option>
-                  </select>
-                )}
-              </div>
-              <div>
-                <label className={LABEL} htmlFor="budget">Budget SGD <span className="font-normal normal-case tracking-normal text-stone-500">(optional)</span></label>
-                <input
-                  id="budget" type="number" min="0" inputMode="numeric" value={budget} onKeyDown={onKey}
-                  onChange={(e) => setBudget(e.target.value)}
-                  placeholder="e.g. 150"
-                  className={FIELD}
-                />
-              </div>
+        {/* Chat log */}
+        <div ref={logRef} className="flex-1 space-y-4 overflow-y-auto py-6">
+          {messages.map((m, i) => (
+            <Bubble key={i} role={m.role} content={m.content} />
+          ))}
+          {loading && (
+            <div className="flex items-center gap-2 text-sm text-stone-500">
+              <Loader size={15} className="animate-spin text-amber-500" />
+              <span>The Quartermaster is checking the catalogue…</span>
             </div>
-
-            <label className={`${LABEL} mt-4 block`} htmlFor="notes">Anything else? <span className="font-normal normal-case tracking-normal text-stone-500">(optional)</span></label>
-            <textarea
-              id="notes" value={notes} onKeyDown={onKey} rows={2}
-              onChange={(e) => setNotes(e.target.value)}
-              placeholder="e.g. it's a gift for a 12-year-old who wants to paint too"
-              className={`${FIELD} resize-none leading-relaxed`}
-            />
-
-            <div className="mt-3 flex flex-wrap gap-2">
-              {PRESETS.map((p, i) => (
-                <button key={i} onClick={() => loadPreset(p)}
-                  className="rounded-full border border-stone-700 px-3 py-1 text-xs text-stone-300 transition hover:border-amber-500 hover:text-amber-400">{p.label}</button>
-              ))}
-            </div>
-
-            {selected && !selected.stocked && (
-              <p className="mt-3 flex items-start gap-2 text-xs leading-relaxed text-amber-500/90">
-                <TriangleAlert size={14} className="mt-0.5 shrink-0" />
-                <span>{selected.value} isn’t stocked in the current catalogue, so you’ll get a “staff to advise” draft rather than a full bundle.</span>
-              </p>
-            )}
-
-            <button onClick={assemble} disabled={loading || !game}
-              className="mt-4 inline-flex items-center gap-2 rounded-sm bg-amber-600 px-5 py-3 text-sm font-semibold uppercase tracking-wide text-neutral-950 transition hover:bg-amber-500 disabled:cursor-not-allowed disabled:opacity-40">
-              {loading ? <Loader size={16} className="animate-spin" /> : <ArrowRight size={16} strokeWidth={2.6} />}
-              {loading ? "Consulting the catalogue" : "Assemble bundle"}
-            </button>
-            <p className="mt-2 text-xs text-stone-600">Tip: ⌘/Ctrl + Enter to assemble.</p>
-          </div>
-
-          <div className="rounded-sm bg-stone-100 text-stone-900 shadow-2xl ring-1 ring-neutral-900">
-            <div className="flex items-center gap-2 border-b border-stone-300 px-4 py-3">
-              <ScrollText size={15} className="text-stone-500" />
-              <span className="text-xs font-semibold uppercase tracking-widest text-stone-500">Requisition</span>
-              {demo && (
-                <span className="ml-auto rounded-full bg-amber-200 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-widest text-amber-800">Demo · no AI</span>
-              )}
-            </div>
-            <div className="px-4 py-4">
-              {!result && !loading && !error && (
-                <div className="py-14 text-center">
-                  <ScrollText size={30} className="mx-auto text-stone-300" />
-                  <p className="mt-3 text-sm text-stone-500">Awaiting requisition.</p>
-                  <p className="text-xs text-stone-400">Choose a game, then assemble.</p>
-                </div>
-              )}
-              {loading && (
-                <div className="animate-pulse py-14 text-center">
-                  <Loader size={26} className="mx-auto animate-spin text-amber-600" />
-                  <p className="mt-3 text-sm text-stone-500">Reading the catalogue…</p>
-                </div>
-              )}
-              {error && !loading && (
-                <div className="py-10 text-center">
-                  <TriangleAlert size={26} className="mx-auto text-amber-700" />
-                  <p className="mt-3 px-3 text-sm text-stone-700">{error}</p>
-                </div>
-              )}
-              {result && !loading && (
-                <div>
-                  <div className="flex flex-wrap gap-x-6 gap-y-1 text-sm">
-                    <Meta label="Hobby" value={result.hobby} />
-                    <Meta label="Interest" value={result.interest} />
-                    <Meta label="Budget" value={result.budget != null ? `$${result.budget}` : "—"} />
-                  </div>
-                  <div className="mt-4">
-                    {Array.isArray(result.items) && result.items.length > 0 ? (
-                      result.items.map((it, i) => (
-                        <div key={i} className="flex items-baseline py-1.5 text-base">
-                          <span className="text-stone-800">{it.name}</span>
-                          <span className="mx-2 flex-1 self-center border-b border-dotted border-stone-400" />
-                          <span className="font-mono tabular-nums text-stone-900">${it.price}</span>
-                        </div>
-                      ))
-                    ) : (
-                      <p className="py-2 text-sm italic text-stone-500">No bundle assembled — see note below.</p>
-                    )}
-                  </div>
-                  {Array.isArray(result.items) && result.items.length > 0 && (
-                    <div className={`mt-3 flex items-center justify-between rounded-sm px-3 py-3 ${result.withinBudget ? "bg-emerald-900 text-emerald-50" : "bg-amber-800 text-amber-50"}`}>
-                      <span className="inline-flex items-center gap-2 text-xs font-semibold uppercase tracking-widest"><Coins size={14} /> Sanctioned total</span>
-                      <span className="font-mono text-lg font-bold tabular-nums">${result.total}</span>
-                    </div>
-                  )}
-                  <div className="mt-4 flex items-start gap-3">
-                    <Seal status={result.status} />
-                    <p className="flex-1 pt-1 text-sm leading-relaxed text-stone-700">{result.note}</p>
-                  </div>
-                </div>
-              )}
-            </div>
-          </div>
+          )}
+          {error && !loading && (
+            <div className="rounded-sm border border-amber-800 bg-amber-950/40 px-3 py-2 text-sm text-amber-300">{error}</div>
+          )}
         </div>
 
-        <p className="mt-8 border-t border-stone-800 pt-4 text-center text-xs text-stone-600">
-          Prototype on a synthetic catalogue · prices in SGD · reflects Warhammer 40k 11th Edition (Jul 2026) · every bundle is staff-reviewed before it reaches a customer
+        {/* Suggestions (only before the first user turn) */}
+        {messages.length === 1 && !loading && (
+          <div className="mb-3 flex flex-wrap gap-2">
+            {SUGGESTIONS.map((s, i) => (
+              <button
+                key={i}
+                onClick={() => send(s)}
+                className="rounded-full border border-stone-700 px-3 py-1.5 text-xs text-stone-300 transition hover:border-amber-500 hover:text-amber-400"
+              >
+                {s}
+              </button>
+            ))}
+          </div>
+        )}
+
+        {/* Composer */}
+        <div className="flex items-end gap-2 rounded-sm border border-stone-700 bg-stone-100 p-2 focus-within:border-amber-500 focus-within:ring-1 focus-within:ring-amber-500">
+          <textarea
+            ref={taRef}
+            value={input}
+            onChange={(e) => setInput(e.target.value)}
+            onKeyDown={onKey}
+            rows={1}
+            placeholder="Describe the game, faction and budget…"
+            className="max-h-40 flex-1 resize-none bg-transparent px-2 py-2 text-base leading-relaxed text-stone-900 placeholder:text-stone-500 focus:outline-none"
+          />
+          <button
+            onClick={() => send()}
+            disabled={loading || !input.trim()}
+            aria-label="Send"
+            className="grid h-10 w-10 shrink-0 place-items-center rounded-sm bg-amber-600 text-neutral-950 transition hover:bg-amber-500 disabled:cursor-not-allowed disabled:opacity-40"
+          >
+            {loading ? <Loader size={18} className="animate-spin" /> : <Send size={18} strokeWidth={2.4} />}
+          </button>
+        </div>
+        <p className="mt-2 text-center text-xs text-stone-600">
+          Prototype on a synthetic catalogue · prices in SGD · every bundle is staff-reviewed before it reaches a customer
         </p>
       </div>
     </div>
   );
 }
 
-function Meta({ label, value }) {
+function Bubble({ role, content }) {
+  const isUser = role === "user";
   return (
-    <div>
-      <div className="text-xs font-semibold uppercase tracking-widest text-stone-400">{label}</div>
-      <div className="font-medium text-stone-900">{value}</div>
-    </div>
-  );
-}
-
-function Seal({ status }) {
-  const ready = status === "ready";
-  return (
-    <div style={{ transform: "rotate(-7deg)" }}
-      className={`grid h-16 w-16 shrink-0 place-items-center rounded-full border-4 text-center ${ready ? "border-emerald-700 text-emerald-800" : "border-amber-700 text-amber-800"}`}>
-      <div>
-        {ready ? <ShieldCheck size={16} className="mx-auto" /> : <TriangleAlert size={16} className="mx-auto" />}
-        <div className="mt-1 text-xs font-bold uppercase leading-none">{ready ? "Ready" : "Draft"}</div>
+    <div className={`flex ${isUser ? "justify-end" : "justify-start"}`}>
+      <div
+        className={`max-w-[85%] whitespace-pre-wrap rounded-lg px-4 py-2.5 text-sm leading-relaxed shadow ${
+          isUser
+            ? "rounded-br-sm bg-amber-600 text-neutral-950"
+            : "rounded-bl-sm bg-stone-100 text-stone-800"
+        }`}
+      >
+        {content}
       </div>
     </div>
   );
