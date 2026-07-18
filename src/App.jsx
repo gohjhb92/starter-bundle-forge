@@ -19,6 +19,32 @@ const PRESETS = [
   { label: "Vague 40k ask", game: "Warhammer 40,000", faction: "", budget: "" },
 ];
 
+// Factions per Game System — drive the dependent "Faction / interest" dropdown.
+// For the TCGs these are colours / types rather than factions.
+const FACTIONS = {
+  "Warhammer 40,000": [
+    "Space Marines", "Blood Angels", "Dark Angels", "Space Wolves", "Grey Knights",
+    "Adeptus Custodes", "Adepta Sororitas", "Astra Militarum", "Adeptus Mechanicus", "Imperial Knights",
+    "Chaos Space Marines", "Death Guard", "Thousand Sons", "World Eaters", "Chaos Daemons", "Chaos Knights",
+    "Orks", "Necrons", "Tyranids", "Genestealer Cults", "Aeldari", "Drukhari", "T'au Empire", "Leagues of Votann",
+  ],
+  "Age of Sigmar": [
+    "Stormcast Eternals", "Cities of Sigmar", "Daughters of Khaine", "Fyreslayers", "Idoneth Deepkin",
+    "Kharadron Overlords", "Lumineth Realm-lords", "Seraphon", "Sylvaneth",
+    "Blades of Khorne", "Disciples of Tzeentch", "Hedonites of Slaanesh", "Maggotkin of Nurgle", "Skaven", "Slaves to Darkness",
+    "Flesh-eater Courts", "Nighthaunt", "Ossiarch Bonereapers", "Soulblight Gravelords",
+    "Gloomspite Gitz", "Orruk Warclans", "Ogor Mawtribes", "Sons of Behemat",
+  ],
+  "The Old World": [
+    "Kingdom of Bretonnia", "Tomb Kings of Khemri", "Empire of Man", "Dwarfen Mountain Holds",
+    "High Elf Realms", "Wood Elf Realms", "Dark Elves", "Orc & Goblin Tribes",
+    "Warriors of Chaos", "Beastmen Brayherds", "Vampire Counts", "Skaven",
+  ],
+  "Magic: The Gathering": ["White", "Blue", "Black", "Red", "Green", "Multicolour"],
+  "Pokémon TCG": ["Fire", "Water", "Grass", "Lightning", "Psychic", "Fighting", "Darkness", "Metal", "Dragon", "Colorless"],
+  "Not sure yet": [],
+};
+
 const FIELD =
   "mt-2 w-full rounded-sm border border-stone-700 bg-stone-100 px-4 py-3 text-base text-stone-900 placeholder:text-stone-500 focus:border-amber-500 focus:outline-none focus:ring-1 focus:ring-amber-500 disabled:cursor-not-allowed disabled:opacity-50";
 const LABEL = "text-xs font-semibold uppercase tracking-widest text-stone-400";
@@ -94,7 +120,7 @@ export default function App() {
             <label className={LABEL} htmlFor="game">Game system</label>
             <select
               id="game" value={game} onKeyDown={onKey}
-              onChange={(e) => { setGame(e.target.value); setResult(null); setError(null); }}
+              onChange={(e) => { setGame(e.target.value); setFaction(""); setResult(null); setError(null); }}
               className={FIELD}
             >
               <option value="" disabled>Choose a game…</option>
@@ -106,12 +132,19 @@ export default function App() {
             <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
               <div>
                 <label className={LABEL} htmlFor="faction">Faction / interest <span className="font-normal normal-case tracking-normal text-stone-500">(optional)</span></label>
-                <input
-                  id="faction" value={faction} disabled={!game} onKeyDown={onKey}
-                  onChange={(e) => setFaction(e.target.value)}
-                  placeholder={selected ? selected.faction : "Pick a game first"}
-                  className={FIELD}
-                />
+                {game ? (
+                  <select id="faction" value={faction} onKeyDown={onKey}
+                    onChange={(e) => setFaction(e.target.value)} className={FIELD}>
+                    <option value="">No preference</option>
+                    {(FACTIONS[game] || []).map((f) => (
+                      <option key={f} value={f}>{f}</option>
+                    ))}
+                  </select>
+                ) : (
+                  <select id="faction" disabled className={FIELD}>
+                    <option>Pick a game first</option>
+                  </select>
+                )}
               </div>
               <div>
                 <label className={LABEL} htmlFor="budget">Budget SGD <span className="font-normal normal-case tracking-normal text-stone-500">(optional)</span></label>
