@@ -189,7 +189,7 @@ function demoReply(messages) {
     let alt = "";
     if (pricier) alt = `\nWant a bigger force? ${pricier.core[0]} brings it to $${pricier.total}.`;
     else if (cheaper) alt = `\nOn a tighter budget, ${cheaper.core[0]} keeps it to $${cheaper.total}.`;
-    return `Here's a ${label} force for ${faction || "your faction"} within your $${budget} budget:\n${fmt(pick.items)}\n\nTotal: $${pick.total} — the box plus paints, tools and glue to build and paint it.${alt}\nEvery bundle is staff-reviewed. Want me to adjust anything?` + note;
+    return `Here's your ${label} force for ${faction || "your faction"} within your $${budget} budget:\n${fmt(pick.items)}\n\nTotal: $${pick.total} — the box plus paints, tools and glue to build and paint it.${alt}\nEvery bundle is staff-reviewed. Want me to adjust anything?` + note;
   }
 
   // Nothing fits. For 40K the Introductory Set is a cheap, paints-included entry.
