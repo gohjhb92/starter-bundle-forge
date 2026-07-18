@@ -56,10 +56,11 @@ Open the URL it prints (usually http://localhost:3000).
   `api/bundle.js` if the site gets real traffic.
 
 ## Model
-`api/bundle.js` uses `claude-sonnet-5`. For lower cost per call, switch to
-`claude-haiku-4-5-20251001` — this structured task runs fine on it. Confirm the
-current model IDs at https://docs.claude.com/en/docs/about-claude/models before
-deploying, since model names change.
+`api/bundle.js` uses `claude-haiku-4-5-20251001` — low cost per call, and this
+structured task runs fine on it. For higher-quality output at a higher price,
+switch to `claude-sonnet-5`. Confirm the current model IDs at
+https://docs.claude.com/en/docs/about-claude/models before deploying, since
+model names change.
 
 ## Editing the catalogue
 The catalogue and rules live in the `SYSTEM_PROMPT` string at the top of

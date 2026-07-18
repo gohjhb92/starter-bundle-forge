@@ -49,7 +49,7 @@ export default async function handler(req, res) {
       return;
     }
     const message = await anthropic.messages.create({
-      model: "claude-sonnet-5", // cheaper option: "claude-haiku-4-5-20251001". Verify current IDs at the docs link in README.
+      model: "claude-haiku-4-5-20251001", // lower cost per call; this structured task runs fine on it. Verify current IDs at the docs link in README.
       max_tokens: 1000,
       system: SYSTEM_PROMPT,
       messages: [{ role: "user", content: request }],
