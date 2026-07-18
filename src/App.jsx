@@ -6,7 +6,7 @@ import { Hammer, ArrowRight, ScrollText, ShieldCheck, TriangleAlert, Coins, Load
 const GAMES = [
   { value: "Warhammer 40,000", label: "Warhammer 40,000 (11th Ed.)", faction: "e.g. Space Marines, Orks — or leave blank", stocked: true },
   { value: "Age of Sigmar", label: "Warhammer: Age of Sigmar", faction: "e.g. Stormcast Eternals — or leave blank", stocked: true },
-  { value: "The Old World", label: "Warhammer: The Old World", faction: "e.g. Empire, Orcs & Goblins — or leave blank", stocked: false },
+  { value: "The Old World", label: "Warhammer: The Old World", faction: "e.g. Empire, Orcs & Goblins — or leave blank", stocked: true },
   { value: "Magic: The Gathering", label: "Magic: The Gathering", faction: "e.g. a colour or archetype — or leave blank", stocked: true },
   { value: "Pokémon TCG", label: "Pokémon TCG", faction: "e.g. a favourite Pokémon — or leave blank", stocked: true },
   { value: "Not sure yet", label: "Not sure yet", faction: "Tell us what they enjoy", stocked: true },

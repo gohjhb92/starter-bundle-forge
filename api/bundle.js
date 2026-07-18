@@ -12,6 +12,9 @@ Warhammer 40,000 (11th Edition):
 - Combat Patrol: [faction] $239 [single-faction force — NO paints/tools]
 Age of Sigmar:
 - Spearhead: [faction] $215 [single-faction force — NO paints/tools]
+Warhammer: The Old World:
+- Old World Army Set: [faction] $230 [single-faction starting army — NO paints/tools]
+- Old World Battalion: [faction] $150 [smaller single-faction starter box — NO paints/tools]
 Paints & tools (add only when the core set does NOT already include them):
 - Faction Paint Set $54 ; Warhammer Tools Set $28 ; Plastic glue $11 ; Starter brush $9 ; Painting Handle $9 ; Citadel paint (each) $9
 Magic: The Gathering:
@@ -22,7 +25,7 @@ TCG accessories:
 - Deck sleeves (100) $9 ; Deck box $12 ; Playmat $32
 
 ESSENTIALS:
-- 40K/AoS: customer must end up with minis PLUS paints, a brush, glue and clippers. BUT the Introductory Set, Getting Started sets, and Starter Set ALREADY include paints/brush/tools — do NOT add separate paints, brush, handle or Tools Set to these; add only plastic glue. A bare Combat Patrol or Spearhead includes none — add a Faction Paint Set, Tools Set and glue.
+- 40K/AoS/Old World: customer must end up with minis PLUS paints, a brush, glue and clippers. BUT the Introductory Set, Getting Started sets, and Starter Set ALREADY include paints/brush/tools — do NOT add separate paints, brush, handle or Tools Set to these; add only plastic glue. A bare Combat Patrol, Spearhead, or Old World Army/Battalion set includes none — add a Faction Paint Set, Tools Set and glue.
 - TCG: core product PLUS deck sleeves at minimum; deck box/playmat only if budget allows.
 
 RULES:
