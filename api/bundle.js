@@ -37,9 +37,37 @@ Respond with ONLY a JSON object, no markdown fences, no text before or after:
 
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
+// Basic in-memory per-IP rate limit. NOTE: serverless instances are ephemeral and
+// NOT shared, so this counter resets on cold starts and doesn't coordinate across
+// concurrent instances — it blunts casual abuse but is not real protection. For a
+// public site with real traffic, use a shared store like Upstash Ratelimit (README).
+const RATE_LIMIT = 10; // requests...
+const RATE_WINDOW_MS = 60_000; // ...per minute, per IP
+const hits = new Map(); // ip -> { count, resetAt }
+
+function rateLimited(ip) {
+  const now = Date.now();
+  // Opportunistic cleanup so the map can't grow unbounded on a long-lived instance.
+  if (hits.size > 5000) {
+    for (const [key, rec] of hits) if (now > rec.resetAt) hits.delete(key);
+  }
+  const rec = hits.get(ip);
+  if (!rec || now > rec.resetAt) {
+    hits.set(ip, { count: 1, resetAt: now + RATE_WINDOW_MS });
+    return false;
+  }
+  rec.count += 1;
+  return rec.count > RATE_LIMIT;
+}
+
 export default async function handler(req, res) {
   if (req.method !== "POST") {
     res.status(405).json({ error: "Method not allowed" });
+    return;
+  }
+  const ip = String(req.headers["x-forwarded-for"] || "").split(",")[0].trim() || "unknown";
+  if (rateLimited(ip)) {
+    res.status(429).json({ error: "Too many requests. Please wait a minute and try again." });
     return;
   }
   try {

@@ -25,8 +25,11 @@ export default function App() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ request: text }),
       });
-      if (!res.ok) throw new Error("request-failed");
-      const data = await res.json();
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setError(data.error || "Couldn't reach the catalogue. Try again in a moment.");
+        return;
+      }
       const clean = String(data.raw || "").replace(/```json/gi, "").replace(/```/g, "").trim();
       setResult(JSON.parse(clean));
     } catch (e) {

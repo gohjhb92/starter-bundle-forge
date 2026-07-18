@@ -52,8 +52,10 @@ Open the URL it prints (usually http://localhost:3000).
 - **Never commit the key.** It lives only in `.env.local` (git-ignored) and in
   Vercel's env vars. If a key is ever pushed, revoke it immediately — git history
   keeps the old value, so rotating is the only fix.
-- Optional next step: add rate-limiting (e.g. Upstash Ratelimit) in
-  `api/bundle.js` if the site gets real traffic.
+- `api/bundle.js` includes a basic in-memory per-IP rate limit (10 req/min). It
+  blunts casual abuse but resets on cold starts and doesn't coordinate across
+  serverless instances — for real traffic, back it with a shared store like
+  Upstash Ratelimit. **A monthly spend cap on the key is still the real safeguard.**
 
 ## Model
 `api/bundle.js` uses `claude-haiku-4-5-20251001` — low cost per call, and this
