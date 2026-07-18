@@ -1,29 +1,56 @@
-import { useState, useRef } from "react";
+import { useState } from "react";
 import { Hammer, ArrowRight, ScrollText, ShieldCheck, TriangleAlert, Coins, Loader } from "lucide-react";
 
-const EXAMPLES = [
-  { label: "Space Marines · $150", text: "Hi, my son wants to get into Warhammer 40k and he likes the Space Marines. We've got a budget of around $150. What should we get to start?" },
-  { label: "Magic · under $50", text: "I've never played Magic but a few friends do and I want to join in. What do I actually need to start? Trying to keep it under $50." },
-  { label: "Old World (not stocked)", text: "Do you have a starter set for Warhammer: The Old World? I've got about $150 to spend." },
-  { label: "Vague 40k ask", text: "hey what do i need to start 40k" },
+// value is what we send to the model (must match the catalogue wording in api/bundle.js);
+// label is what the shopkeeper sees; faction is the placeholder hint for the interest field.
+const GAMES = [
+  { value: "Warhammer 40,000", label: "Warhammer 40,000 (11th Ed.)", faction: "e.g. Space Marines, Orks — or leave blank", stocked: true },
+  { value: "Age of Sigmar", label: "Warhammer: Age of Sigmar", faction: "e.g. Stormcast Eternals — or leave blank", stocked: true },
+  { value: "The Old World", label: "Warhammer: The Old World", faction: "e.g. Empire, Orcs & Goblins — or leave blank", stocked: false },
+  { value: "Magic: The Gathering", label: "Magic: The Gathering", faction: "e.g. a colour or archetype — or leave blank", stocked: true },
+  { value: "Pokémon TCG", label: "Pokémon TCG", faction: "e.g. a favourite Pokémon — or leave blank", stocked: true },
+  { value: "Not sure yet", label: "Not sure yet", faction: "Tell us what they enjoy", stocked: true },
 ];
 
+const PRESETS = [
+  { label: "40k Space Marines · $150", game: "Warhammer 40,000", faction: "Space Marines", budget: "150" },
+  { label: "Magic · under $50", game: "Magic: The Gathering", faction: "", budget: "50" },
+  { label: "Old World · $150", game: "The Old World", faction: "", budget: "150" },
+  { label: "Vague 40k ask", game: "Warhammer 40,000", faction: "", budget: "" },
+];
+
+const FIELD =
+  "mt-2 w-full rounded-sm border border-stone-700 bg-stone-100 px-4 py-3 text-base text-stone-900 placeholder:text-stone-500 focus:border-amber-500 focus:outline-none focus:ring-1 focus:ring-amber-500 disabled:cursor-not-allowed disabled:opacity-50";
+const LABEL = "text-xs font-semibold uppercase tracking-widest text-stone-400";
+
 export default function App() {
-  const [request, setRequest] = useState("");
+  const [game, setGame] = useState("");
+  const [faction, setFaction] = useState("");
+  const [budget, setBudget] = useState("");
+  const [notes, setNotes] = useState("");
   const [result, setResult] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
-  const areaRef = useRef(null);
+
+  const selected = GAMES.find((g) => g.value === game);
+
+  function buildRequest() {
+    const parts = [];
+    parts.push(game === "Not sure yet" ? "I'm not sure which game to start." : `I want to start ${game}.`);
+    if (faction.trim()) parts.push(`I'm interested in ${faction.trim()}.`);
+    parts.push(budget ? `My budget is around $${budget}.` : "I haven't settled on a budget yet.");
+    if (notes.trim()) parts.push(notes.trim());
+    return parts.join(" ");
+  }
 
   async function assemble() {
-    const text = request.trim();
-    if (!text || loading) return;
+    if (!game || loading) return;
     setLoading(true); setError(null); setResult(null);
     try {
       const res = await fetch("/api/bundle", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ request: text }),
+        body: JSON.stringify({ request: buildRequest() }),
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
@@ -33,13 +60,16 @@ export default function App() {
       const clean = String(data.raw || "").replace(/```json/gi, "").replace(/```/g, "").trim();
       setResult(JSON.parse(clean));
     } catch (e) {
-      setError("Couldn't read a bundle back. Try again, or rephrase the request with a game and a budget.");
+      setError("Couldn't read a bundle back. Try again, or adjust the game and budget.");
     } finally {
       setLoading(false);
     }
   }
 
-  function loadExample(t) { setRequest(t); setResult(null); setError(null); areaRef.current && areaRef.current.focus(); }
+  function loadPreset(p) {
+    setGame(p.game); setFaction(p.faction); setBudget(p.budget);
+    setResult(null); setError(null);
+  }
   function onKey(e) { if ((e.metaKey || e.ctrlKey) && e.key === "Enter") assemble(); }
 
   return (
@@ -58,19 +88,62 @@ export default function App() {
 
         <div className="mt-7 grid gap-6 md:grid-cols-2">
           <div>
-            <label className="text-xs font-semibold uppercase tracking-widest text-stone-400">Recruit's request</label>
+            <label className={LABEL} htmlFor="game">Game system</label>
+            <select
+              id="game" value={game} onKeyDown={onKey}
+              onChange={(e) => { setGame(e.target.value); setResult(null); setError(null); }}
+              className={FIELD}
+            >
+              <option value="" disabled>Choose a game…</option>
+              {GAMES.map((g) => (
+                <option key={g.value} value={g.value}>{g.label}</option>
+              ))}
+            </select>
+
+            <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
+              <div>
+                <label className={LABEL} htmlFor="faction">Faction / interest <span className="font-normal normal-case tracking-normal text-stone-500">(optional)</span></label>
+                <input
+                  id="faction" value={faction} disabled={!game} onKeyDown={onKey}
+                  onChange={(e) => setFaction(e.target.value)}
+                  placeholder={selected ? selected.faction : "Pick a game first"}
+                  className={FIELD}
+                />
+              </div>
+              <div>
+                <label className={LABEL} htmlFor="budget">Budget SGD <span className="font-normal normal-case tracking-normal text-stone-500">(optional)</span></label>
+                <input
+                  id="budget" type="number" min="0" inputMode="numeric" value={budget} onKeyDown={onKey}
+                  onChange={(e) => setBudget(e.target.value)}
+                  placeholder="e.g. 150"
+                  className={FIELD}
+                />
+              </div>
+            </div>
+
+            <label className={`${LABEL} mt-4 block`} htmlFor="notes">Anything else? <span className="font-normal normal-case tracking-normal text-stone-500">(optional)</span></label>
             <textarea
-              ref={areaRef} value={request} onChange={e => setRequest(e.target.value)} onKeyDown={onKey} rows={5}
-              placeholder={'Paste what the customer said — their game and their budget. e.g. "Want to start 40k Space Marines, budget around $150."'}
-              className="mt-2 w-full resize-none rounded-sm border border-stone-700 bg-stone-100 px-4 py-3 text-base leading-relaxed text-stone-900 placeholder:text-stone-500 focus:border-amber-500 focus:outline-none focus:ring-1 focus:ring-amber-500"
+              id="notes" value={notes} onKeyDown={onKey} rows={2}
+              onChange={(e) => setNotes(e.target.value)}
+              placeholder="e.g. it's a gift for a 12-year-old who wants to paint too"
+              className={`${FIELD} resize-none leading-relaxed`}
             />
+
             <div className="mt-3 flex flex-wrap gap-2">
-              {EXAMPLES.map((ex, i) => (
-                <button key={i} onClick={() => loadExample(ex.text)}
-                  className="rounded-full border border-stone-700 px-3 py-1 text-xs text-stone-300 transition hover:border-amber-500 hover:text-amber-400">{ex.label}</button>
+              {PRESETS.map((p, i) => (
+                <button key={i} onClick={() => loadPreset(p)}
+                  className="rounded-full border border-stone-700 px-3 py-1 text-xs text-stone-300 transition hover:border-amber-500 hover:text-amber-400">{p.label}</button>
               ))}
             </div>
-            <button onClick={assemble} disabled={loading || !request.trim()}
+
+            {selected && !selected.stocked && (
+              <p className="mt-3 flex items-start gap-2 text-xs leading-relaxed text-amber-500/90">
+                <TriangleAlert size={14} className="mt-0.5 shrink-0" />
+                <span>{selected.value} isn’t stocked in the current catalogue, so you’ll get a “staff to advise” draft rather than a full bundle.</span>
+              </p>
+            )}
+
+            <button onClick={assemble} disabled={loading || !game}
               className="mt-4 inline-flex items-center gap-2 rounded-sm bg-amber-600 px-5 py-3 text-sm font-semibold uppercase tracking-wide text-neutral-950 transition hover:bg-amber-500 disabled:cursor-not-allowed disabled:opacity-40">
               {loading ? <Loader size={16} className="animate-spin" /> : <ArrowRight size={16} strokeWidth={2.6} />}
               {loading ? "Consulting the catalogue" : "Assemble bundle"}
@@ -88,7 +161,7 @@ export default function App() {
                 <div className="py-14 text-center">
                   <ScrollText size={30} className="mx-auto text-stone-300" />
                   <p className="mt-3 text-sm text-stone-500">Awaiting requisition.</p>
-                  <p className="text-xs text-stone-400">Enter a request or pick an example.</p>
+                  <p className="text-xs text-stone-400">Choose a game, then assemble.</p>
                 </div>
               )}
               {loading && (
