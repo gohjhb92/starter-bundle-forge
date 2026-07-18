@@ -74,11 +74,11 @@ Set a real `ANTHROPIC_API_KEY` to switch to genuine AI responses automatically.
 ## Editing the catalogue
 The catalogue and rules live in the `SYSTEM_PROMPT` string at the top of
 `api/bundle.js` — combat patrols, spearheads, boxes, paints, tools and TCG
-products. Product **names** reflect Warhammer's real current range, but the
-**prices are placeholder estimates in SGD** — Warhammer prices are region-specific
-and warhammer.com blocks automated fetching, so replace every price with Bastion
-Wargames' real SGD figures before going live. Combat Patrol / Spearhead faction
-availability also rotates, so trim the lists to what you actually stock. The assistant replies in plain
+products. Product **names** reflect Warhammer's real current range; **prices are
+rough SGD estimates** (Warhammer prices are region-specific and warhammer.com
+blocks automated fetching, so these are approximate — refine to Bastion Wargames'
+exact figures when you have them). Combat Patrol / Spearhead faction availability
+also rotates, so trim the lists to what you actually stock. The assistant replies in plain
 conversational text, so there's no output shape to keep in sync. The scripted
 `demoReply` fallback lower in the file only covers a few sample bundles — a real
 API key gives the full catalogue-aware conversation.

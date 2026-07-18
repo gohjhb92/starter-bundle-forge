@@ -1,15 +1,49 @@
 import { useState, useRef, useEffect } from "react";
-import { Hammer, Send, Loader, Sparkles } from "lucide-react";
+import { Hammer, Send, Loader, Sparkles, Wand2 } from "lucide-react";
 
 const GREETING =
   "Welcome to Bastion Wargames — I'm the Quartermaster. Tell me who I'm kitting out: which game (Warhammer 40,000, Age of Sigmar, The Old World, Magic, Pokémon…), any faction or theme they fancy, and a rough budget. New to the hobby? I'll make sure you leave with everything needed to build and paint.";
 
 const SUGGESTIONS = [
   "My son wants to start 40k Space Marines, budget ~$150",
-  "I want to get into Magic with friends, under $50",
+  "Get into Magic: The Gathering with friends, under $50",
+  "A Pokémon TCG starter for a 9-year-old, around $60",
   "A complete Old World Empire army to paint, around $250",
   "What do I need to start Age of Sigmar?",
 ];
+
+// Quick-pick dropdowns. Game values feed the message we compose for the chat.
+const GAMES = [
+  "Warhammer 40,000",
+  "Age of Sigmar",
+  "The Old World",
+  "Magic: The Gathering",
+  "Pokémon TCG",
+  "Not sure yet",
+];
+
+const FACTIONS = {
+  "Warhammer 40,000": [
+    "Space Marines", "Blood Angels", "Dark Angels", "Space Wolves", "Grey Knights",
+    "Adeptus Custodes", "Adepta Sororitas", "Astra Militarum", "Adeptus Mechanicus", "Imperial Knights",
+    "Chaos Space Marines", "Death Guard", "Thousand Sons", "World Eaters", "Chaos Daemons", "Chaos Knights",
+    "Orks", "Necrons", "Tyranids", "Genestealer Cults", "Aeldari", "Drukhari", "T'au Empire", "Leagues of Votann",
+  ],
+  "Age of Sigmar": [
+    "Stormcast Eternals", "Cities of Sigmar", "Daughters of Khaine", "Fyreslayers", "Idoneth Deepkin",
+    "Kharadron Overlords", "Lumineth Realm-lords", "Seraphon", "Sylvaneth",
+    "Blades of Khorne", "Disciples of Tzeentch", "Hedonites of Slaanesh", "Maggotkin of Nurgle", "Skaven", "Slaves to Darkness",
+    "Flesh-eater Courts", "Nighthaunt", "Ossiarch Bonereapers", "Soulblight Gravelords",
+    "Gloomspite Gitz", "Orruk Warclans", "Ogor Mawtribes", "Sons of Behemat",
+  ],
+  "The Old World": [
+    "Kingdom of Bretonnia", "Tomb Kings of Khemri", "Empire of Man", "Grand Cathay", "Dwarfen Mountain Holds",
+    "High Elf Realms", "Wood Elf Realms", "Orc & Goblin Tribes", "Warriors of Chaos", "Beastmen Brayherds",
+  ],
+  "Magic: The Gathering": ["White", "Blue", "Black", "Red", "Green", "Multicolour", "Commander"],
+  "Pokémon TCG": ["Fire", "Water", "Grass", "Lightning", "Psychic", "Fighting", "Darkness", "Metal", "Dragon"],
+  "Not sure yet": [],
+};
 
 export default function App() {
   const [messages, setMessages] = useState([{ role: "assistant", content: GREETING }]);
@@ -17,8 +51,11 @@ export default function App() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [demo, setDemo] = useState(false);
+  // Quick-pick state
+  const [game, setGame] = useState("");
+  const [faction, setFaction] = useState("");
+  const [budget, setBudget] = useState("");
   const logRef = useRef(null);
-  const taRef = useRef(null);
 
   useEffect(() => {
     const el = logRef.current;
@@ -37,7 +74,6 @@ export default function App() {
       const res = await fetch("/api/bundle", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        // Drop the client-side greeting (index 0) so the thread starts with the user.
         body: JSON.stringify({ messages: next.slice(1) }),
       });
       const data = await res.json().catch(() => ({}));
@@ -54,12 +90,23 @@ export default function App() {
     }
   }
 
+  function askFromPicks() {
+    if (!game) return;
+    const parts = [];
+    parts.push(game === "Not sure yet" ? "I'm not sure which game to start" : `I'd like to start ${game}`);
+    if (faction) parts.push(`interested in ${faction}`);
+    if (budget) parts.push(`budget around $${budget}`);
+    send(parts.join(", ") + ".");
+  }
+
   function onKey(e) {
     if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
       send();
     }
   }
+
+  const factions = game ? FACTIONS[game] || [] : [];
 
   return (
     <div className="flex min-h-screen w-full flex-col bg-neutral-950 text-stone-200 font-sans">
@@ -111,10 +158,53 @@ export default function App() {
           </div>
         )}
 
+        {/* Quick-pick dropdowns */}
+        <div className="mb-3 flex flex-wrap items-center gap-2 rounded-sm border border-stone-800 bg-neutral-900/60 p-2">
+          <span className="px-1 text-[10px] font-semibold uppercase tracking-widest text-stone-500">Quick pick</span>
+          <select
+            value={game}
+            onChange={(e) => { setGame(e.target.value); setFaction(""); }}
+            className="rounded-sm border border-stone-700 bg-stone-100 px-2 py-1.5 text-sm text-stone-900 focus:border-amber-500 focus:outline-none"
+          >
+            <option value="">Game…</option>
+            {GAMES.map((g) => (
+              <option key={g} value={g}>{g}</option>
+            ))}
+          </select>
+          <select
+            value={faction}
+            onChange={(e) => setFaction(e.target.value)}
+            disabled={!game || factions.length === 0}
+            className="rounded-sm border border-stone-700 bg-stone-100 px-2 py-1.5 text-sm text-stone-900 focus:border-amber-500 focus:outline-none disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            <option value="">{game && factions.length ? "Faction (optional)" : "Faction"}</option>
+            {factions.map((f) => (
+              <option key={f} value={f}>{f}</option>
+            ))}
+          </select>
+          <div className="flex items-center rounded-sm border border-stone-700 bg-stone-100 px-2">
+            <span className="text-sm text-stone-500">$</span>
+            <input
+              type="number"
+              min="0"
+              value={budget}
+              onChange={(e) => setBudget(e.target.value)}
+              placeholder="Budget"
+              className="w-20 bg-transparent px-1 py-1.5 text-sm text-stone-900 placeholder:text-stone-500 focus:outline-none"
+            />
+          </div>
+          <button
+            onClick={askFromPicks}
+            disabled={loading || !game}
+            className="inline-flex items-center gap-1.5 rounded-sm bg-amber-600 px-3 py-1.5 text-xs font-semibold uppercase tracking-wide text-neutral-950 transition hover:bg-amber-500 disabled:cursor-not-allowed disabled:opacity-40"
+          >
+            <Wand2 size={14} /> Ask
+          </button>
+        </div>
+
         {/* Composer */}
         <div className="flex items-end gap-2 rounded-sm border border-stone-700 bg-stone-100 p-2 focus-within:border-amber-500 focus-within:ring-1 focus-within:ring-amber-500">
           <textarea
-            ref={taRef}
             value={input}
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={onKey}
@@ -132,7 +222,7 @@ export default function App() {
           </button>
         </div>
         <p className="mt-2 text-center text-xs text-stone-600">
-          Prototype on a synthetic catalogue · prices in SGD · every bundle is staff-reviewed before it reaches a customer
+          Prototype · rough SGD price estimates · every bundle is staff-reviewed before it reaches a customer
         </p>
       </div>
     </div>
