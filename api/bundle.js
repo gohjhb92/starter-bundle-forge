@@ -125,7 +125,7 @@ function demoReply(messages) {
   const t = users.toLowerCase();
   const bMatch = t.match(/\$\s*(\d{2,5})/) || t.match(/\b(\d{2,5})\b/);
   const budget = bMatch ? Number(bMatch[1]) : null;
-  const note = "\n\n_(Demo mode: scripted reply — add an ANTHROPIC_API_KEY for full conversational AI.)_";
+  const note = "\n\n(Demo mode: scripted reply — add an ANTHROPIC_API_KEY for full conversational AI.)";
 
   const g =
     /old world|bretonnia|tomb kings/.test(t) ? "old" :
@@ -157,7 +157,7 @@ function demoReply(messages) {
   if (total > budget) {
     return `For ${label}, the most affordable complete starter I'd recommend comes to about $${total}, just over your $${budget}. If you can stretch to ~$${total}:\n${lines}\nOtherwise tell me and I'll find the closest cheaper entry point.` + note;
   }
-  return `Here's a solid ${label} starter within your $${budget} budget:\n${lines}\n\nTotal: $${total} — that gets you everything to ${playOrPaint}. Every bundle is checked by our staff before purchase. Want me to adjust anything?` + note;
+  return `Here's a solid starter for ${label}, within your $${budget} budget:\n${lines}\n\nTotal: $${total} — that gets you everything to ${playOrPaint}. Every bundle is checked by our staff before purchase. Want me to adjust anything?` + note;
 }
 
 export default async function handler(req, res) {
