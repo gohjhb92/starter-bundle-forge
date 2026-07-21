@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect } from "react";
-import { Hammer, Send, Loader, Sparkles, Wand2, ShoppingBag, MessageCircle, Mail } from "lucide-react";
+import { Hammer, Send, Loader, Sparkles, Wand2, ShoppingBag, MessageCircle, Mail, Plus, Minus, X, RotateCcw } from "lucide-react";
 import ReactMarkdown from "react-markdown";
-import { GAMES, FACTIONS, STORE } from "../catalogue.js";
+import { GAMES, FACTIONS, STORE, ADDONS } from "../catalogue.js";
 
 const GREETING =
   "Welcome to Bastion Wargames — I'm the Quartermaster. Tell me who I'm kitting out: which game (Warhammer 40,000, Age of Sigmar, The Old World, Magic, Pokémon…), any faction or theme they fancy, and a rough budget. New to the hobby? I'll make sure you leave with everything needed to build and paint.";
@@ -259,47 +259,107 @@ function buildReserveText(bundle) {
   ].join("\n");
 }
 
-// Structured order card: itemised bundle, total, budget bar, and reserve actions.
+// Structured order card: itemised bundle the customer can edit (adjust quantity,
+// remove, add extras), with a live total, budget bar and reserve actions.
 function BundleCard({ bundle }) {
-  const { items, total, budget, currency } = bundle;
+  const original = bundle.items;
+  const [lines, setLines] = useState(() => original.map((it) => ({ ...it })));
+  const { budget, currency } = bundle;
+
+  const total = lines.reduce((n, it) => n + it.price * it.qty, 0);
   const over = budget != null && total > budget;
   const pct = budget ? Math.min(100, Math.round((total / budget) * 100)) : null;
-  const text = buildReserveText(bundle);
+  const empty = lines.length === 0;
+  const edited = JSON.stringify(lines) !== JSON.stringify(original);
+
+  const setQty = (i, d) =>
+    setLines((ls) => ls.map((it, j) => (j === i ? { ...it, qty: Math.max(1, it.qty + d) } : it)));
+  const removeLine = (i) => setLines((ls) => ls.filter((_, j) => j !== i));
+  const reset = () => setLines(original.map((it) => ({ ...it })));
+  const addAddon = (name) => {
+    const addon = ADDONS.find((a) => a.name === name);
+    if (!addon) return;
+    setLines((ls) => {
+      const idx = ls.findIndex((it) => it.name === addon.name);
+      if (idx >= 0) return ls.map((it, j) => (j === idx ? { ...it, qty: it.qty + 1 } : it));
+      return [...ls, { name: addon.name, price: addon.price, qty: 1 }];
+    });
+  };
+
+  const text = buildReserveText({ items: lines, total, budget, currency });
   const waHref = STORE.whatsapp ? `https://wa.me/${STORE.whatsapp}?text=${encodeURIComponent(text)}` : null;
   const mailHref = `mailto:${STORE.email}?subject=${encodeURIComponent(
     `Bundle reservation — ${STORE.name}`
   )}&body=${encodeURIComponent(text)}`;
+
+  const stepBtn =
+    "grid h-6 w-6 place-items-center rounded-sm border border-stone-600 text-stone-300 transition hover:border-amber-500 hover:text-amber-400 disabled:cursor-not-allowed disabled:opacity-30";
 
   return (
     <div className="max-w-[85%] rounded-lg border border-stone-700 bg-neutral-900/80 p-4 text-sm shadow">
       <div className="mb-2 flex items-center gap-2 text-amber-500">
         <ShoppingBag size={15} />
         <span className="text-[11px] font-semibold uppercase tracking-widest">Your bundle</span>
+        {edited && <span className="text-[10px] font-medium uppercase tracking-wide text-stone-500">· edited</span>}
         <span className="ml-auto text-[10px] font-medium uppercase tracking-wide text-stone-500">{currency}</span>
       </div>
 
-      <ul className="divide-y divide-stone-800">
-        {items.map((it, i) => (
-          <li key={i} className="flex items-baseline gap-2 py-1.5">
-            <span className="flex-1 text-stone-200">
-              {it.name}
-              {it.qty > 1 && <span className="text-stone-500"> ×{it.qty}</span>}
-            </span>
-            <span className="tabular-nums text-stone-300">{fmtMoney(it.price * it.qty)}</span>
-          </li>
-        ))}
-      </ul>
+      {empty ? (
+        <p className="py-3 text-stone-400">Bundle is empty — add an extra below to reserve.</p>
+      ) : (
+        <ul className="divide-y divide-stone-800">
+          {lines.map((it, i) => (
+            <li key={i} className="flex items-center gap-2 py-1.5">
+              <span className="flex-1 text-stone-200">{it.name}</span>
+              <div className="flex items-center gap-1">
+                <button onClick={() => setQty(i, -1)} disabled={it.qty <= 1} aria-label={`Decrease ${it.name}`} className={stepBtn}>
+                  <Minus size={12} />
+                </button>
+                <span className="w-6 text-center tabular-nums text-stone-300">{it.qty}</span>
+                <button onClick={() => setQty(i, 1)} aria-label={`Increase ${it.name}`} className={stepBtn}>
+                  <Plus size={12} />
+                </button>
+              </div>
+              <span className="w-16 text-right tabular-nums text-stone-300">{fmtMoney(it.price * it.qty)}</span>
+              <button onClick={() => removeLine(i)} aria-label={`Remove ${it.name}`} className="grid h-6 w-6 place-items-center rounded-sm text-stone-500 transition hover:bg-stone-800 hover:text-red-400">
+                <X size={13} />
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+
+      <div className="mt-2 flex flex-wrap items-center gap-2">
+        <select
+          value=""
+          onChange={(e) => addAddon(e.target.value)}
+          className="rounded-sm border border-stone-700 bg-stone-100 px-2 py-1 text-xs text-stone-900 focus:border-amber-500 focus:outline-none"
+        >
+          <option value="">+ Add an extra…</option>
+          {ADDONS.map((a) => (
+            <option key={a.name} value={a.name}>{`${a.name} — ${fmtMoney(a.price)}`}</option>
+          ))}
+        </select>
+        {edited && (
+          <button
+            onClick={reset}
+            className="inline-flex items-center gap-1 rounded-sm px-2 py-1 text-xs text-stone-400 transition hover:text-amber-400"
+          >
+            <RotateCcw size={12} /> Reset
+          </button>
+        )}
+      </div>
 
       <div className="mt-2 flex items-baseline gap-2 border-t border-stone-700 pt-2">
         <span className="flex-1 font-semibold text-stone-100">Total</span>
         <span className="tabular-nums text-lg font-bold text-amber-400">{fmtMoney(total)}</span>
       </div>
 
-      {budget != null && (
+      {budget != null && !empty && (
         <div className="mt-2">
           <div className="h-1.5 w-full overflow-hidden rounded-full bg-stone-800">
             <div
-              className={`h-full rounded-full ${over ? "bg-red-500" : "bg-emerald-500"}`}
+              className={`h-full rounded-full transition-all ${over ? "bg-red-500" : "bg-emerald-500"}`}
               style={{ width: `${pct}%` }}
             />
           </div>
@@ -317,20 +377,24 @@ function BundleCard({ bundle }) {
             href={waHref}
             target="_blank"
             rel="noopener noreferrer"
-            className="inline-flex items-center gap-1.5 rounded-sm bg-amber-600 px-3 py-1.5 text-xs font-semibold uppercase tracking-wide text-neutral-950 transition hover:bg-amber-500"
+            aria-disabled={empty}
+            onClick={(e) => empty && e.preventDefault()}
+            className={`inline-flex items-center gap-1.5 rounded-sm bg-amber-600 px-3 py-1.5 text-xs font-semibold uppercase tracking-wide text-neutral-950 transition hover:bg-amber-500 ${empty ? "pointer-events-none opacity-40" : ""}`}
           >
             <MessageCircle size={14} /> Reserve via WhatsApp
           </a>
         )}
         <a
           href={mailHref}
-          className="inline-flex items-center gap-1.5 rounded-sm border border-stone-600 px-3 py-1.5 text-xs font-semibold uppercase tracking-wide text-stone-200 transition hover:border-amber-500 hover:text-amber-400"
+          aria-disabled={empty}
+          onClick={(e) => empty && e.preventDefault()}
+          className={`inline-flex items-center gap-1.5 rounded-sm border border-stone-600 px-3 py-1.5 text-xs font-semibold uppercase tracking-wide text-stone-200 transition hover:border-amber-500 hover:text-amber-400 ${empty ? "pointer-events-none opacity-40" : ""}`}
         >
           <Mail size={14} /> Reserve by email
         </a>
       </div>
       <p className="mt-2 text-[11px] text-stone-500">
-        Opens a pre-filled message — staff confirm stock and price before payment.
+        Adjust quantities or add extras above — the reservation uses your edited bundle. Staff confirm stock and price before payment.
       </p>
     </div>
   );

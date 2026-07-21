@@ -51,3 +51,18 @@ export const STORE = {
   whatsapp: "",
   email: "hello@bastionwargames.example",
 };
+
+// Common optional extras a customer can add to a bundle straight from the order
+// card. Prices in SGD — keep roughly in step with the SYSTEM_PROMPT catalogue in
+// api/bundle.js.
+export const ADDONS = [
+  { name: "Citadel paint", price: 9 },
+  { name: "Faction Paint Set", price: 54 },
+  { name: "Citadel Starter Brush", price: 9 },
+  { name: "Warhammer Tools Set", price: 28 },
+  { name: "Plastic glue", price: 11 },
+  { name: "Chaos Black spray", price: 28 },
+  { name: "Citadel Water Pot", price: 9 },
+  { name: "Deck sleeves (100)", price: 9 },
+  { name: "Deck box", price: 12 },
+];

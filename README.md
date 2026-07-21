@@ -78,6 +78,11 @@ structured, itemised bundle and renders it as an **order card** — line items, 
 total, and a budget bar (green under budget, red over). Using a tool rather than
 parsing the prose makes the card reliable.
 
+The card is **interactive**: customers adjust quantities, remove items, or add an
+extra from the add-on picker (the `ADDONS` list in [`catalogue.js`](catalogue.js)),
+and the total, budget bar and reservation message all update live — no need to
+ask the assistant to tweak it. A **Reset** restores the assistant's original.
+
 Each card has **Reserve** buttons that open a pre-filled WhatsApp / email enquiry
 to the store — turning a chat into a real lead. Set the store's contact details in
 [`catalogue.js`](catalogue.js):
