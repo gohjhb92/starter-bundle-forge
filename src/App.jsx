@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect } from "react";
 import { Hammer, Send, Loader, Sparkles, Wand2 } from "lucide-react";
+import ReactMarkdown from "react-markdown";
 
 const GREETING =
   "Welcome to Bastion Wargames — I'm the Quartermaster. Tell me who I'm kitting out: which game (Warhammer 40,000, Age of Sigmar, The Old World, Magic, Pokémon…), any faction or theme they fancy, and a rough budget. New to the hobby? I'll make sure you leave with everything needed to build and paint.";
@@ -229,18 +230,39 @@ export default function App() {
   );
 }
 
+// Render the assistant's markdown (bold, bullet/numbered lists) with styles that
+// fit the chat bubble. User messages stay plain text — they're not markdown.
+const MD_COMPONENTS = {
+  p: ({ children }) => <p className="mb-2 last:mb-0">{children}</p>,
+  strong: ({ children }) => <strong className="font-semibold text-stone-900">{children}</strong>,
+  em: ({ children }) => <em className="italic">{children}</em>,
+  ul: ({ children }) => <ul className="mb-2 list-disc space-y-0.5 pl-5 last:mb-0">{children}</ul>,
+  ol: ({ children }) => <ol className="mb-2 list-decimal space-y-0.5 pl-5 last:mb-0">{children}</ol>,
+  li: ({ children }) => <li className="leading-snug">{children}</li>,
+  a: ({ children, href }) => (
+    <a href={href} target="_blank" rel="noopener noreferrer" className="text-amber-700 underline">
+      {children}
+    </a>
+  ),
+  code: ({ children }) => <code className="rounded bg-stone-200 px-1 py-0.5 text-[13px]">{children}</code>,
+};
+
 function Bubble({ role, content }) {
   const isUser = role === "user";
   return (
     <div className={`flex ${isUser ? "justify-end" : "justify-start"}`}>
       <div
-        className={`max-w-[85%] whitespace-pre-wrap rounded-lg px-4 py-2.5 text-sm leading-relaxed shadow ${
+        className={`max-w-[85%] rounded-lg px-4 py-2.5 text-sm leading-relaxed shadow ${
           isUser
-            ? "rounded-br-sm bg-amber-600 text-neutral-950"
+            ? "whitespace-pre-wrap rounded-br-sm bg-amber-600 text-neutral-950"
             : "rounded-bl-sm bg-stone-100 text-stone-800"
         }`}
       >
-        {content}
+        {isUser ? (
+          content
+        ) : (
+          <ReactMarkdown components={MD_COMPONENTS}>{content}</ReactMarkdown>
+        )}
       </div>
     </div>
   );
