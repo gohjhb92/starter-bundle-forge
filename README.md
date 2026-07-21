@@ -71,6 +71,26 @@ simple rules — so you can deploy and demo the whole flow for free. The UI show
 small **"Demo · no AI"** badge so sample data is never mistaken for live output.
 Set a real `ANTHROPIC_API_KEY` to switch to genuine AI responses automatically.
 
+## The order card & reserving at the store
+When the assistant recommends a **final** bundle it calls a `recommend_bundle`
+tool (see `api/bundle.js`), so alongside its friendly message the app receives a
+structured, itemised bundle and renders it as an **order card** — line items, a
+total, and a budget bar (green under budget, red over). Using a tool rather than
+parsing the prose makes the card reliable.
+
+Each card has **Reserve** buttons that open a pre-filled WhatsApp / email enquiry
+to the store — turning a chat into a real lead. Set the store's contact details in
+[`catalogue.js`](catalogue.js):
+```js
+export const STORE = {
+  name: "Bastion Wargames",
+  whatsapp: "",                          // full intl number, digits only, e.g. "6591234567". "" hides the button.
+  email: "hello@bastionwargames.example" // replace with the real enquiries inbox
+};
+```
+These are **placeholders** — replace them before going live. Nothing is sent
+automatically; the buttons just open the customer's own WhatsApp/email composer.
+
 ## Editing the catalogue
 The catalogue and rules live in the `SYSTEM_PROMPT` string at the top of
 `api/bundle.js` — combat patrols, spearheads, boxes, paints, tools and TCG
@@ -78,9 +98,12 @@ products. Product **names** reflect Warhammer's real current range; **prices are
 rough SGD estimates** (Warhammer prices are region-specific and warhammer.com
 blocks automated fetching, so these are approximate — refine to Bastion Wargames'
 exact figures when you have them). Combat Patrol / Spearhead faction availability
-also rotates, so trim the lists to what you actually stock. The assistant replies in plain
-conversational text, so there's no output shape to keep in sync. The scripted
-`demoReply` fallback lower in the file only covers a few sample bundles — a real
+also rotates, so trim the lists to what you actually stock.
+
+The game/faction lists that feed the quick-pick dropdowns **and** the demo replies
+live once in [`catalogue.js`](catalogue.js), imported by both the browser app and
+the serverless function — edit factions there, not in two places. The scripted
+`demoReply` fallback in `api/bundle.js` only covers a few sample bundles; a real
 API key gives the full catalogue-aware conversation.
 
 ## Using Claude Code on this repo

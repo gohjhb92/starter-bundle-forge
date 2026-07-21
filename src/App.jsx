@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect } from "react";
-import { Hammer, Send, Loader, Sparkles, Wand2 } from "lucide-react";
+import { Hammer, Send, Loader, Sparkles, Wand2, ShoppingBag, MessageCircle, Mail } from "lucide-react";
 import ReactMarkdown from "react-markdown";
+import { GAMES, FACTIONS, STORE } from "../catalogue.js";
 
 const GREETING =
   "Welcome to Bastion Wargames — I'm the Quartermaster. Tell me who I'm kitting out: which game (Warhammer 40,000, Age of Sigmar, The Old World, Magic, Pokémon…), any faction or theme they fancy, and a rough budget. New to the hobby? I'll make sure you leave with everything needed to build and paint.";
@@ -12,39 +13,6 @@ const SUGGESTIONS = [
   "A complete Old World Empire army to paint, around $250",
   "What do I need to start Age of Sigmar?",
 ];
-
-// Quick-pick dropdowns. Game values feed the message we compose for the chat.
-const GAMES = [
-  "Warhammer 40,000",
-  "Age of Sigmar",
-  "The Old World",
-  "Magic: The Gathering",
-  "Pokémon TCG",
-  "Not sure yet",
-];
-
-const FACTIONS = {
-  "Warhammer 40,000": [
-    "Space Marines", "Blood Angels", "Dark Angels", "Space Wolves", "Grey Knights",
-    "Adeptus Custodes", "Adepta Sororitas", "Astra Militarum", "Adeptus Mechanicus", "Imperial Knights",
-    "Chaos Space Marines", "Death Guard", "Thousand Sons", "World Eaters", "Chaos Daemons", "Chaos Knights",
-    "Orks", "Necrons", "Tyranids", "Genestealer Cults", "Aeldari", "Drukhari", "T'au Empire", "Leagues of Votann",
-  ],
-  "Age of Sigmar": [
-    "Stormcast Eternals", "Cities of Sigmar", "Daughters of Khaine", "Fyreslayers", "Idoneth Deepkin",
-    "Kharadron Overlords", "Lumineth Realm-lords", "Seraphon", "Sylvaneth",
-    "Blades of Khorne", "Disciples of Tzeentch", "Hedonites of Slaanesh", "Maggotkin of Nurgle", "Skaven", "Slaves to Darkness",
-    "Flesh-eater Courts", "Nighthaunt", "Ossiarch Bonereapers", "Soulblight Gravelords",
-    "Gloomspite Gitz", "Orruk Warclans", "Ogor Mawtribes", "Sons of Behemat",
-  ],
-  "The Old World": [
-    "Kingdom of Bretonnia", "Tomb Kings of Khemri", "Empire of Man", "Grand Cathay", "Dwarfen Mountain Holds",
-    "High Elf Realms", "Wood Elf Realms", "Orc & Goblin Tribes", "Warriors of Chaos", "Beastmen Brayherds",
-  ],
-  "Magic: The Gathering": ["White", "Blue", "Black", "Red", "Green", "Multicolour", "Commander"],
-  "Pokémon TCG": ["Fire", "Water", "Grass", "Lightning", "Psychic", "Fighting", "Darkness", "Metal", "Dragon"],
-  "Not sure yet": [],
-};
 
 export default function App() {
   const [messages, setMessages] = useState([{ role: "assistant", content: GREETING }]);
@@ -83,7 +51,7 @@ export default function App() {
         return;
       }
       setDemo(Boolean(data.demo));
-      setMessages((m) => [...m, { role: "assistant", content: String(data.reply || "…") }]);
+      setMessages((m) => [...m, { role: "assistant", content: String(data.reply || "…"), bundle: data.bundle || null }]);
     } catch (e) {
       setError("Couldn't reach the Quartermaster. Please try again.");
     } finally {
@@ -131,7 +99,10 @@ export default function App() {
         {/* Chat log */}
         <div ref={logRef} className="flex-1 space-y-4 overflow-y-auto py-6">
           {messages.map((m, i) => (
-            <Bubble key={i} role={m.role} content={m.content} />
+            <div key={i} className="space-y-2">
+              <Bubble role={m.role} content={m.content} />
+              {m.role === "assistant" && m.bundle && <BundleCard bundle={m.bundle} />}
+            </div>
           ))}
           {loading && (
             <div className="flex items-center gap-2 text-sm text-stone-500">
@@ -264,6 +235,103 @@ function Bubble({ role, content }) {
           <ReactMarkdown components={MD_COMPONENTS}>{content}</ReactMarkdown>
         )}
       </div>
+    </div>
+  );
+}
+
+const fmtMoney = (n) => `$${Number(n || 0).toLocaleString()}`;
+
+// Pre-filled enquiry the customer sends to reserve the bundle at the store.
+function buildReserveText(bundle) {
+  const lines = bundle.items.map(
+    (it) => `• ${it.name}${it.qty > 1 ? ` ×${it.qty}` : ""} — ${fmtMoney(it.price * it.qty)}`
+  );
+  const budgetNote = bundle.budget != null ? ` (budget ${fmtMoney(bundle.budget)})` : "";
+  return [
+    `Hi ${STORE.name}, I'd like to reserve this starter bundle:`,
+    "",
+    ...lines,
+    "",
+    `Total: ${fmtMoney(bundle.total)}${budgetNote}`,
+    "",
+    "Name:",
+    "Preferred pickup date:",
+  ].join("\n");
+}
+
+// Structured order card: itemised bundle, total, budget bar, and reserve actions.
+function BundleCard({ bundle }) {
+  const { items, total, budget, currency } = bundle;
+  const over = budget != null && total > budget;
+  const pct = budget ? Math.min(100, Math.round((total / budget) * 100)) : null;
+  const text = buildReserveText(bundle);
+  const waHref = STORE.whatsapp ? `https://wa.me/${STORE.whatsapp}?text=${encodeURIComponent(text)}` : null;
+  const mailHref = `mailto:${STORE.email}?subject=${encodeURIComponent(
+    `Bundle reservation — ${STORE.name}`
+  )}&body=${encodeURIComponent(text)}`;
+
+  return (
+    <div className="max-w-[85%] rounded-lg border border-stone-700 bg-neutral-900/80 p-4 text-sm shadow">
+      <div className="mb-2 flex items-center gap-2 text-amber-500">
+        <ShoppingBag size={15} />
+        <span className="text-[11px] font-semibold uppercase tracking-widest">Your bundle</span>
+        <span className="ml-auto text-[10px] font-medium uppercase tracking-wide text-stone-500">{currency}</span>
+      </div>
+
+      <ul className="divide-y divide-stone-800">
+        {items.map((it, i) => (
+          <li key={i} className="flex items-baseline gap-2 py-1.5">
+            <span className="flex-1 text-stone-200">
+              {it.name}
+              {it.qty > 1 && <span className="text-stone-500"> ×{it.qty}</span>}
+            </span>
+            <span className="tabular-nums text-stone-300">{fmtMoney(it.price * it.qty)}</span>
+          </li>
+        ))}
+      </ul>
+
+      <div className="mt-2 flex items-baseline gap-2 border-t border-stone-700 pt-2">
+        <span className="flex-1 font-semibold text-stone-100">Total</span>
+        <span className="tabular-nums text-lg font-bold text-amber-400">{fmtMoney(total)}</span>
+      </div>
+
+      {budget != null && (
+        <div className="mt-2">
+          <div className="h-1.5 w-full overflow-hidden rounded-full bg-stone-800">
+            <div
+              className={`h-full rounded-full ${over ? "bg-red-500" : "bg-emerald-500"}`}
+              style={{ width: `${pct}%` }}
+            />
+          </div>
+          <div className={`mt-1 text-[11px] ${over ? "text-red-400" : "text-emerald-400"}`}>
+            {over
+              ? `${fmtMoney(total - budget)} over your ${fmtMoney(budget)} budget`
+              : `${fmtMoney(budget - total)} under your ${fmtMoney(budget)} budget`}
+          </div>
+        </div>
+      )}
+
+      <div className="mt-3 flex flex-wrap gap-2">
+        {waHref && (
+          <a
+            href={waHref}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center gap-1.5 rounded-sm bg-amber-600 px-3 py-1.5 text-xs font-semibold uppercase tracking-wide text-neutral-950 transition hover:bg-amber-500"
+          >
+            <MessageCircle size={14} /> Reserve via WhatsApp
+          </a>
+        )}
+        <a
+          href={mailHref}
+          className="inline-flex items-center gap-1.5 rounded-sm border border-stone-600 px-3 py-1.5 text-xs font-semibold uppercase tracking-wide text-stone-200 transition hover:border-amber-500 hover:text-amber-400"
+        >
+          <Mail size={14} /> Reserve by email
+        </a>
+      </div>
+      <p className="mt-2 text-[11px] text-stone-500">
+        Opens a pre-filled message — staff confirm stock and price before payment.
+      </p>
     </div>
   );
 }
