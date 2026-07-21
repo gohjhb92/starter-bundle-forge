@@ -311,6 +311,16 @@ function extractBundle(text) {
   return { reply: text.trim(), bundles: [] };
 }
 
+// Short message used when the model called the tool but wrote no prose of its own.
+function composeFallback(bundles) {
+  if (bundles.length > 1) {
+    return "Here are a few options I'd recommend — take a look and tell me which you'd like. Every bundle is staff-reviewed before purchase.";
+  }
+  const b = bundles[0];
+  const within = b.budget != null && b.total <= b.budget ? ", comfortably within budget" : "";
+  return `Here's a starter bundle I'd recommend — **$${b.total}** in total${within}. Every bundle is staff-reviewed before purchase. Want me to adjust anything?`;
+}
+
 export default async function handler(req, res) {
   if (req.method !== "POST") {
     res.status(405).json({ error: "Method not allowed" });
@@ -340,42 +350,63 @@ export default async function handler(req, res) {
       return;
     }
 
-    // No key / DEMO_MODE: scripted reply, no API call, no cost.
+    // Stream the response as newline-delimited JSON events:
+    //   {"type":"text","delta":"…"}   incremental assistant text
+    //   {"type":"done","reply":"…","bundles":[…],"demo":bool}   final, canonical
+    //   {"type":"error","error":"…"}  failure after streaming began
+    res.writeHead(200, {
+      "Content-Type": "application/x-ndjson; charset=utf-8",
+      "Cache-Control": "no-cache, no-transform",
+      "X-Accel-Buffering": "no",
+    });
+    const send = (obj) => res.write(JSON.stringify(obj) + "\n");
+
+    // No key / DEMO_MODE: scripted reply in one chunk, no API call, no cost.
     if (DEMO_MODE) {
       const { text, bundles } = demoReply(clean);
-      res.status(200).json({ reply: text, bundles, demo: true });
+      send({ type: "text", delta: text });
+      send({ type: "done", reply: text, bundles, demo: true });
+      res.end();
       return;
     }
 
     const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
-    const message = await anthropic.messages.create({
+    const stream = anthropic.messages.stream({
       model: "claude-haiku-4-5-20251001", // lower cost per call; verify current IDs at the docs link in README.
       max_tokens: 1000,
       system: SYSTEM_PROMPT,
       messages: clean,
       tools: [BUNDLE_TOOL],
     });
-    const blocks = message.content || [];
-    const raw = blocks.filter((b) => b.type === "text").map((b) => b.text).join("\n").trim();
+
+    let acc = "";
+    stream.on("text", (delta) => {
+      acc += delta;
+      send({ type: "text", delta });
+    });
+
+    const final = await stream.finalMessage();
+    const blocks = final.content || [];
     const toolUse = blocks.find((b) => b.type === "tool_use" && b.name === "recommend_bundles");
 
     // Prefer the structured tool call; fall back to a fenced block if the model
-    // put one in prose instead. Strip any stray fenced block from what we show.
-    let { reply, bundles } = extractBundle(raw);
+    // put one in prose. extractBundle also strips any stray fence from the text.
+    let { reply, bundles } = extractBundle(acc);
     if (toolUse) bundles = normalizeBundles(toolUse.input);
+    if (!reply && bundles.length) reply = composeFallback(bundles);
 
-    // If the model called the tool but wrote no message, compose a short one.
-    // Keep it brief — the itemised cards already list the products below.
-    if (!reply && bundles.length) {
-      const b = bundles[0];
-      const within = b.budget != null && b.total <= b.budget ? ", comfortably within budget" : "";
-      reply =
-        bundles.length > 1
-          ? `Here are a few options I'd recommend — take a look and tell me which you'd like. Every bundle is staff-reviewed before purchase.`
-          : `Here's a starter bundle I'd recommend — **$${b.total}** in total${within}. Every bundle is staff-reviewed before purchase. Want me to adjust anything?`;
-    }
-    res.status(200).json({ reply: reply || "…", bundles, demo: false });
+    // Canonical final text (fence-stripped / fallback) — client replaces the
+    // streamed text with this on done.
+    send({ type: "done", reply: reply || "…", bundles, demo: false });
+    res.end();
   } catch (e) {
-    res.status(500).json({ error: "Generation failed. Check the server logs and your ANTHROPIC_API_KEY." });
+    // If we haven't started streaming yet, a normal JSON error; otherwise emit an
+    // error event on the open stream.
+    if (res.headersSent) {
+      res.write(JSON.stringify({ type: "error", error: "Generation failed. Check the server logs and your ANTHROPIC_API_KEY." }) + "\n");
+      res.end();
+    } else {
+      res.status(500).json({ error: "Generation failed. Check the server logs and your ANTHROPIC_API_KEY." });
+    }
   }
 }

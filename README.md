@@ -14,6 +14,12 @@ safe pattern for a public site.
 Browser (React)  ->  /api/bundle (serverless, holds key)  ->  Anthropic API
 ```
 
+The reply **streams** back token-by-token: `/api/bundle` responds with a
+newline-delimited JSON (NDJSON) stream — `{"type":"text","delta":…}` events as
+the model writes, then a final `{"type":"done","reply":…,"bundles":[…]}` carrying
+the canonical text and the structured order card(s). The UI fills the chat bubble
+live and renders the cards on `done`.
+
 ## Prerequisites
 - Node.js 18+ (`node -v`)
 - An Anthropic API key — https://console.anthropic.com/

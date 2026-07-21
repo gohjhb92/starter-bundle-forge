@@ -45,14 +45,58 @@ export default function App() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ messages: next.slice(1) }),
       });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) {
+      if (!res.ok || !res.body) {
+        const data = await res.json().catch(() => ({}));
         setError(data.error || "Something went wrong. Please try again.");
         return;
       }
-      setDemo(Boolean(data.demo));
-      const bundles = Array.isArray(data.bundles) ? data.bundles : data.bundle ? [data.bundle] : [];
-      setMessages((m) => [...m, { role: "assistant", content: String(data.reply || "…"), bundles }]);
+
+      // Add a streaming assistant placeholder, then fill it from the NDJSON stream.
+      setMessages((m) => [...m, { role: "assistant", content: "", bundles: [], streaming: true }]);
+      const patchLast = (patch) =>
+        setMessages((m) => {
+          const copy = [...m];
+          const last = copy[copy.length - 1];
+          if (last && last.role === "assistant") copy[copy.length - 1] = { ...last, ...patch };
+          return copy;
+        });
+
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder();
+      let buf = "";
+      let acc = "";
+      let gotDone = false;
+
+      for (;;) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buf += decoder.decode(value, { stream: true });
+        let nl;
+        while ((nl = buf.indexOf("\n")) >= 0) {
+          const line = buf.slice(0, nl).trim();
+          buf = buf.slice(nl + 1);
+          if (!line) continue;
+          let evt;
+          try {
+            evt = JSON.parse(line);
+          } catch {
+            continue;
+          }
+          if (evt.type === "text") {
+            acc += evt.delta || "";
+            patchLast({ content: acc });
+          } else if (evt.type === "done") {
+            gotDone = true;
+            setDemo(Boolean(evt.demo));
+            const bundles = Array.isArray(evt.bundles) ? evt.bundles : [];
+            patchLast({ content: evt.reply || acc || "…", bundles, streaming: false });
+          } else if (evt.type === "error") {
+            patchLast({ content: acc || "…", streaming: false });
+            setError(evt.error || "Something went wrong. Please try again.");
+          }
+        }
+      }
+      if (!gotDone) patchLast({ content: acc || "…", streaming: false });
     } catch (e) {
       setError("Couldn't reach the Quartermaster. Please try again.");
     } finally {
@@ -77,6 +121,10 @@ export default function App() {
   }
 
   const factions = game ? FACTIONS[game] || [] : [];
+  // Show the "checking…" spinner only until the first streamed token lands.
+  const last = messages[messages.length - 1];
+  const awaitingFirstToken =
+    loading && (!last || last.role !== "assistant" || !last.content);
 
   return (
     <div className="flex min-h-screen w-full flex-col bg-neutral-950 text-stone-200 font-sans">
@@ -101,14 +149,14 @@ export default function App() {
         <div ref={logRef} className="flex-1 space-y-4 overflow-y-auto py-6">
           {messages.map((m, i) => (
             <div key={i} className="space-y-2">
-              <Bubble role={m.role} content={m.content} />
+              <Bubble role={m.role} content={m.content} streaming={m.streaming} />
               {m.role === "assistant" &&
                 (m.bundles || []).map((b, j) => (
                   <BundleCard key={j} bundle={b} tiered={(m.bundles || []).length > 1} />
                 ))}
             </div>
           ))}
-          {loading && (
+          {awaitingFirstToken && (
             <div className="flex items-center gap-2 text-sm text-stone-500">
               <Loader size={15} className="animate-spin text-amber-500" />
               <span>The Quartermaster is checking the catalogue…</span>
@@ -222,7 +270,7 @@ const MD_COMPONENTS = {
   code: ({ children }) => <code className="rounded bg-stone-200 px-1 py-0.5 text-[13px]">{children}</code>,
 };
 
-function Bubble({ role, content }) {
+function Bubble({ role, content, streaming }) {
   const isUser = role === "user";
   return (
     <div className={`flex ${isUser ? "justify-end" : "justify-start"}`}>
@@ -236,7 +284,12 @@ function Bubble({ role, content }) {
         {isUser ? (
           content
         ) : (
-          <ReactMarkdown components={MD_COMPONENTS}>{content}</ReactMarkdown>
+          <>
+            <ReactMarkdown components={MD_COMPONENTS}>{content}</ReactMarkdown>
+            {streaming && (
+              <span className="ml-0.5 inline-block h-3.5 w-[2px] animate-pulse bg-stone-500 align-middle" />
+            )}
+          </>
         )}
       </div>
     </div>
