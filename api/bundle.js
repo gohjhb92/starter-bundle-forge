@@ -94,53 +94,80 @@ ESSENTIALS GUIDANCE:
 - Offer variety: name the faction-specific box (e.g. Combat Patrol: Necrons, Spearhead: Nighthaunt, a faction Battleforce) rather than a generic starter, and suggest a cheaper or bigger option when it helps.
 - TCG: core product PLUS deck sleeves at minimum; deck box/playmat only if budget allows.
 
-PRESENTING A FINAL BUNDLE:
-- When — and only when — you recommend a specific, final bundle, do BOTH: (1) write your short friendly message, and (2) call the \`recommend_bundle\` tool with the itemised bundle so the app can show it as an order card.
-- In your written message, list the items as a few plain lines or a simple bulleted list (e.g. "- 40K Introductory Set — $111"). Do NOT use markdown tables.
-- Use exact catalogue names and prices; the tool's total must equal the sum of price×qty; pass the customer's stated budget (omit it if they gave none); currency is always "SGD".
-- While you're still asking questions or not giving a concrete bundle, do NOT call the tool.
-- Never mention the tool, JSON or "order card" in your written message — the app renders the card separately.`;
+PRESENTING FINAL BUNDLE(S):
+- When — and only when — you recommend specific, final bundle(s), do BOTH: (1) write your short friendly message, and (2) call the \`recommend_bundles\` tool so the app can show each as an itemised order card.
+- Usually offer ONE bundle. When it genuinely helps — e.g. the ideal build is over budget, or the customer would benefit from seeing a range — offer 2-3 tiers, cheapest first, each with a short label like "Essentials", "Recommended" and "Complete" (or "Good"/"Better"/"Best").
+- In your written message, keep it brief and don't re-list every item/price line-by-line — the cards show those. Do NOT use markdown tables.
+- Use exact catalogue names and prices; each bundle's total must equal the sum of price×qty; pass the customer's stated budget (omit it if they gave none); currency is always "SGD".
+- While you're still asking questions or not giving a concrete recommendation, do NOT call the tool.
+- Never mention the tool, JSON or "order card" in your written message — the app renders the cards separately.`;
 
-// Tool the model calls to hand back a structured, itemised bundle alongside its
-// conversational reply. Far more reliable than parsing prose for the order card.
+// Tool the model calls to hand back one or more structured, itemised bundle
+// options alongside its conversational reply. Far more reliable than parsing prose.
 const BUNDLE_TOOL = {
-  name: "recommend_bundle",
+  name: "recommend_bundles",
   description:
-    "Record the finalised starter bundle you are recommending so the app can display it as an itemised order card with a reserve button. Call this ONLY when presenting a specific, final bundle — never while still asking questions.",
+    "Record the finalised starter bundle option(s) you are recommending so the app can display each as an itemised order card with a reserve button. Call this ONLY when presenting specific, final recommendation(s) — never while still asking questions. Provide one bundle normally, or 2-3 tiers (cheapest first) when offering a range.",
   input_schema: {
     type: "object",
     properties: {
-      items: {
+      bundles: {
         type: "array",
-        description: "Each product in the bundle, using exact catalogue names and prices.",
+        description: "1 to 3 bundle options, cheapest/simplest first.",
         items: {
           type: "object",
           properties: {
-            name: { type: "string" },
-            price: { type: "number", description: "Unit price in SGD." },
-            qty: { type: "number", description: "Quantity (default 1)." },
+            label: { type: "string", description: "Short tier label, e.g. \"Essentials\", \"Recommended\", \"Complete\". Omit for a single bundle." },
+            items: {
+              type: "array",
+              description: "Each product in this bundle, using exact catalogue names and prices.",
+              items: {
+                type: "object",
+                properties: {
+                  name: { type: "string" },
+                  price: { type: "number", description: "Unit price in SGD." },
+                  qty: { type: "number", description: "Quantity (default 1)." },
+                },
+                required: ["name", "price"],
+              },
+            },
+            total: { type: "number", description: "Sum of price×qty across this bundle's items, in SGD." },
           },
-          required: ["name", "price"],
+          required: ["items", "total"],
         },
       },
-      total: { type: "number", description: "Sum of price×qty across all items, in SGD." },
       budget: { type: "number", description: "The customer's stated budget in SGD. Omit if none was given." },
       currency: { type: "string", description: "Always \"SGD\"." },
     },
-    required: ["items", "total"],
+    required: ["bundles"],
   },
 };
 
-// Normalise a recommend_bundle tool input into the bundle shape the client expects.
-function normalizeBundle(input) {
-  if (!input || !Array.isArray(input.items)) return null;
-  const items = input.items
+// Normalise one bundle's raw items/total into the shape the client card expects.
+function normalizeOneBundle(raw, budget, currency) {
+  if (!raw || !Array.isArray(raw.items)) return null;
+  const items = raw.items
     .map((it) => ({ name: String(it.name || "").slice(0, 120), price: Number(it.price) || 0, qty: Number(it.qty) || 1 }))
     .filter((it) => it.name);
   if (!items.length) return null;
-  const total = Number(input.total) || items.reduce((n, it) => n + it.price * it.qty, 0);
+  const total = Number(raw.total) || items.reduce((n, it) => n + it.price * it.qty, 0);
+  return {
+    label: raw.label ? String(raw.label).slice(0, 40) : null,
+    items,
+    total,
+    budget: Number.isFinite(budget) ? budget : null,
+    currency: currency || "SGD",
+  };
+}
+
+// Normalise a recommend_bundles tool input into an array of client bundles.
+function normalizeBundles(input) {
+  if (!input || !Array.isArray(input.bundles)) return [];
   const budget = input.budget == null ? null : Number(input.budget);
-  return { items, total, budget: Number.isFinite(budget) ? budget : null, currency: input.currency || "SGD" };
+  return input.bundles
+    .map((b) => normalizeOneBundle(b, budget, input.currency))
+    .filter(Boolean)
+    .slice(0, 3);
 }
 
 const DEMO_MODE =
@@ -171,8 +198,9 @@ function rateLimited(ip) {
 }
 
 // --- Demo mode: scripted (no-LLM) reply so the prototype runs free ----------
-// Returns { text, bundle } — bundle is a structured order object when a concrete
-// bundle is recommended, or null while still asking questions.
+// Returns { text, bundles } — bundles is an array of structured order objects
+// (one, or a couple of tiers) when a concrete bundle is recommended, or [] while
+// still asking questions.
 function demoReply(messages) {
   const users = messages.filter((m) => m.role === "user").map((m) => m.content).join("  ");
   const t = users.toLowerCase();
@@ -183,7 +211,8 @@ function demoReply(messages) {
   const fmt = (items) => items.map(([n, p]) => `• ${n} — $${p}`).join("\n");
   const sum = (items) => items.reduce((n, [, p]) => n + p, 0);
   // Turn [name, price] pairs into the structured bundle the order card renders.
-  const bundleOf = (items) => ({
+  const bundleOf = (items, label = null) => ({
+    label,
     items: items.map(([name, price]) => ({ name, price, qty: 1 })),
     total: sum(items),
     budget: budget ?? null,
@@ -199,23 +228,25 @@ function demoReply(messages) {
     null;
 
   if (!g) {
-    return { text: "Happy to help you get started! Which game are we kitting out — Warhammer 40,000, Age of Sigmar, The Old World, Magic: The Gathering, or Pokémon? And do you have a rough budget in mind?" + note, bundle: null };
+    return { text: "Happy to help you get started! Which game are we kitting out — Warhammer 40,000, Age of Sigmar, The Old World, Magic: The Gathering, or Pokémon? And do you have a rough budget in mind?" + note, bundles: [] };
   }
   const label = { "40k": "Warhammer 40,000", aos: "Age of Sigmar", old: "The Old World", mtg: "Magic: The Gathering", pkm: "Pokémon" }[g];
   if (budget == null) {
-    return { text: `Great choice — ${label} is a fantastic place to start. Roughly what budget are you working with, and would you like everything needed to paint the models too?` + note, bundle: null };
+    return { text: `Great choice — ${label} is a fantastic place to start. Roughly what budget are you working with, and would you like everything needed to paint the models too?` + note, bundles: [] };
   }
 
-  // Trading card games
+  // Trading card games — offer an Essentials tier, plus a Complete tier when it fits.
   if (g === "mtg" || g === "pkm") {
     const core = g === "mtg" ? ["MTG Starter Kit", 30] : ["Pokemon Battle Academy", 50];
     const items = [core, ["Deck sleeves (100)", 9]];
     const total = sum(items);
     if (total > budget) {
-      return { text: `The most affordable ${label} starter I'd suggest is about $${total}, just over your $${budget}:\n${fmt(items)}\nStretch a little and you're set — or tell me and I'll trim it.` + note, bundle: bundleOf(items) };
+      return { text: `The most affordable ${label} starter I'd suggest is about $${total}, just over your $${budget}:\n${fmt(items)}\nStretch a little and you're set — or tell me and I'll trim it.` + note, bundles: [bundleOf(items)] };
     }
-    const alt = g === "mtg" ? "a Commander Deck ($60) for one big ready-to-play deck" : "an Elite Trainer Box ($70) for more cards, sleeves and accessories";
-    return { text: `Here's a solid ${label} starter within your $${budget} budget:\n${fmt(items)}\n\nTotal: $${total} — everything to start playing. Want more? Add ${alt}. Every bundle is staff-reviewed. Want me to adjust anything?` + note, bundle: bundleOf(items) };
+    const complete = [...items, ["Deck box", 12]];
+    const tiers = [bundleOf(items, "Essentials")];
+    if (sum(complete) <= budget) tiers.push(bundleOf(complete, "Complete"));
+    return { text: `Here's a solid ${label} starter within your $${budget} budget — everything to start playing. Every bundle is staff-reviewed. Want me to adjust anything?` + note, bundles: tiers };
   }
 
   // Warhammer — faction-aware, with a range of box options. Faction list comes
@@ -242,46 +273,42 @@ function demoReply(messages) {
   if (fit.length) {
     const pick = fit[0];
     const pricier = bundles.filter((b) => b.total > pick.total).sort((a, b) => a.total - b.total)[0];
-    const cheaper = bundles.filter((b) => b.total < pick.total).sort((a, b) => b.total - a.total)[0];
-    let alt = "";
-    if (pricier) alt = `\nWant a bigger force? ${pricier.core[0]} brings it to $${pricier.total}.`;
-    else if (cheaper) alt = `\nOn a tighter budget, ${cheaper.core[0]} keeps it to $${cheaper.total}.`;
-    return { text: `Here's your ${label} force for ${faction || "your faction"} within your $${budget} budget:\n${fmt(pick.items)}\n\nTotal: $${pick.total} — the box plus paints, tools and glue to build and paint it.${alt}\nEvery bundle is staff-reviewed. Want me to adjust anything?` + note, bundle: bundleOf(pick.items) };
+    // Recommended tier that fits, plus a "Complete" bigger-force tier when one exists.
+    const tiers = [bundleOf(pick.items, pricier ? "Recommended" : null)];
+    if (pricier) tiers.push(bundleOf(pricier.items, "Bigger force"));
+    const alt = pricier ? ` I've added a bigger-force option too — it runs over budget but gives you more to paint.` : "";
+    return { text: `Here's your ${label} force for ${faction || "your faction"} within your $${budget} budget — the box plus paints, tools and glue to build and paint it.${alt} Every bundle is staff-reviewed. Want me to adjust anything?` + note, bundles: tiers };
   }
 
   // Nothing fits. For 40K the Introductory Set is a cheap, paints-included entry.
   if (g === "40k") {
     const intro = [["40K Introductory Set", 111], ["Plastic glue", 11]];
     if (sum(intro) <= budget) {
-      return { text: `A full ${fac} force runs about $${bundles[0].total} (Combat Patrol + paints & tools), just over your $${budget}. To start within budget, the 40K Introductory Set is ideal — 16 push-fit minis with paints and tools included:\n${fmt(intro)}\n\nTotal: $${sum(intro)}. Add a Combat Patrol: ${fac} ($239) when you're ready to grow. Want me to adjust anything?` + note, bundle: bundleOf(intro) };
+      return { text: `A full ${fac} force runs about $${bundles[0].total} (Combat Patrol + paints & tools), just over your $${budget}. To start within budget, the 40K Introductory Set is ideal — 16 push-fit minis with paints and tools included. Add a Combat Patrol: ${fac} ($239) when you're ready to grow. Want me to adjust anything?` + note, bundles: [bundleOf(intro)] };
     }
   }
   const cheapest = bundles.sort((a, b) => a.total - b.total)[0];
-  return { text: `A complete ${label} starter for ${fac} comes to about $${cheapest.total} (${cheapest.core[0]} plus paints, tools and glue), above your $${budget}. Nudge the budget to ~$${cheapest.total}, or I can suggest a smaller box — just say the word.` + note, bundle: bundleOf(cheapest.items) };
+  return { text: `A complete ${label} starter for ${fac} comes to about $${cheapest.total} (${cheapest.core[0]} plus paints, tools and glue), above your $${budget}. Nudge the budget to ~$${cheapest.total}, or I can suggest a smaller box — just say the word.` + note, bundles: [bundleOf(cheapest.items)] };
 }
 
-// Pull a trailing ```bundle / ```json order block out of the AI's reply, parse
-// it into a structured bundle, and strip it from the prose the customer sees.
+// Fallback: pull a trailing ```bundle / ```json order block out of the AI's reply
+// (in case it emits one instead of calling the tool), parse it, and strip it from
+// the prose. Supports either a single-bundle object or a {bundles:[...]} object.
 function extractBundle(text) {
   const fence = text.match(/```(?:bundle|json)\s*([\s\S]*?)```/i);
-  if (!fence) return { reply: text.trim(), bundle: null };
+  if (!fence) return { reply: text.trim(), bundles: [] };
   try {
     const obj = JSON.parse(fence[1].trim());
-    if (obj && Array.isArray(obj.items) && obj.items.length) {
-      const items = obj.items
-        .map((it) => ({ name: String(it.name || "").slice(0, 120), price: Number(it.price) || 0, qty: Number(it.qty) || 1 }))
-        .filter((it) => it.name);
-      if (items.length) {
-        const total = Number(obj.total) || items.reduce((n, it) => n + it.price * it.qty, 0);
-        const budget = obj.budget == null ? null : Number(obj.budget);
-        const reply = text.replace(fence[0], "").trim();
-        return { reply, bundle: { items, total, budget: Number.isFinite(budget) ? budget : null, currency: obj.currency || "SGD" } };
-      }
-    }
+    const bundles = Array.isArray(obj.bundles)
+      ? normalizeBundles(obj)
+      : Array.isArray(obj.items)
+        ? normalizeBundles({ bundles: [obj], budget: obj.budget, currency: obj.currency })
+        : [];
+    if (bundles.length) return { reply: text.replace(fence[0], "").trim(), bundles };
   } catch {
     // Malformed block — fall through and just show the prose.
   }
-  return { reply: text.trim(), bundle: null };
+  return { reply: text.trim(), bundles: [] };
 }
 
 export default async function handler(req, res) {
@@ -315,35 +342,39 @@ export default async function handler(req, res) {
 
     // No key / DEMO_MODE: scripted reply, no API call, no cost.
     if (DEMO_MODE) {
-      const { text, bundle } = demoReply(clean);
-      res.status(200).json({ reply: text, bundle, demo: true });
+      const { text, bundles } = demoReply(clean);
+      res.status(200).json({ reply: text, bundles, demo: true });
       return;
     }
 
     const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
     const message = await anthropic.messages.create({
       model: "claude-haiku-4-5-20251001", // lower cost per call; verify current IDs at the docs link in README.
-      max_tokens: 900,
+      max_tokens: 1000,
       system: SYSTEM_PROMPT,
       messages: clean,
       tools: [BUNDLE_TOOL],
     });
     const blocks = message.content || [];
     const raw = blocks.filter((b) => b.type === "text").map((b) => b.text).join("\n").trim();
-    const toolUse = blocks.find((b) => b.type === "tool_use" && b.name === "recommend_bundle");
+    const toolUse = blocks.find((b) => b.type === "tool_use" && b.name === "recommend_bundles");
 
     // Prefer the structured tool call; fall back to a fenced block if the model
     // put one in prose instead. Strip any stray fenced block from what we show.
-    let { reply, bundle } = extractBundle(raw);
-    if (toolUse) bundle = normalizeBundle(toolUse.input);
+    let { reply, bundles } = extractBundle(raw);
+    if (toolUse) bundles = normalizeBundles(toolUse.input);
 
     // If the model called the tool but wrote no message, compose a short one.
-    // Keep it brief — the itemised card already lists the products below.
-    if (!reply && bundle) {
-      const within = bundle.budget != null && bundle.total <= bundle.budget ? ", comfortably within budget" : "";
-      reply = `Here's a starter bundle I'd recommend — **$${bundle.total}** in total${within}. Every bundle is staff-reviewed before purchase. Want me to adjust anything?`;
+    // Keep it brief — the itemised cards already list the products below.
+    if (!reply && bundles.length) {
+      const b = bundles[0];
+      const within = b.budget != null && b.total <= b.budget ? ", comfortably within budget" : "";
+      reply =
+        bundles.length > 1
+          ? `Here are a few options I'd recommend — take a look and tell me which you'd like. Every bundle is staff-reviewed before purchase.`
+          : `Here's a starter bundle I'd recommend — **$${b.total}** in total${within}. Every bundle is staff-reviewed before purchase. Want me to adjust anything?`;
     }
-    res.status(200).json({ reply: reply || "…", bundle, demo: false });
+    res.status(200).json({ reply: reply || "…", bundles, demo: false });
   } catch (e) {
     res.status(500).json({ error: "Generation failed. Check the server logs and your ANTHROPIC_API_KEY." });
   }

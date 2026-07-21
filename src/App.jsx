@@ -51,7 +51,8 @@ export default function App() {
         return;
       }
       setDemo(Boolean(data.demo));
-      setMessages((m) => [...m, { role: "assistant", content: String(data.reply || "…"), bundle: data.bundle || null }]);
+      const bundles = Array.isArray(data.bundles) ? data.bundles : data.bundle ? [data.bundle] : [];
+      setMessages((m) => [...m, { role: "assistant", content: String(data.reply || "…"), bundles }]);
     } catch (e) {
       setError("Couldn't reach the Quartermaster. Please try again.");
     } finally {
@@ -101,7 +102,10 @@ export default function App() {
           {messages.map((m, i) => (
             <div key={i} className="space-y-2">
               <Bubble role={m.role} content={m.content} />
-              {m.role === "assistant" && m.bundle && <BundleCard bundle={m.bundle} />}
+              {m.role === "assistant" &&
+                (m.bundles || []).map((b, j) => (
+                  <BundleCard key={j} bundle={b} tiered={(m.bundles || []).length > 1} />
+                ))}
             </div>
           ))}
           {loading && (
@@ -261,7 +265,8 @@ function buildReserveText(bundle) {
 
 // Structured order card: itemised bundle the customer can edit (adjust quantity,
 // remove, add extras), with a live total, budget bar and reserve actions.
-function BundleCard({ bundle }) {
+// `tiered` is true when it's one of several Good/Better/Best options.
+function BundleCard({ bundle, tiered }) {
   const original = bundle.items;
   const [lines, setLines] = useState(() => original.map((it) => ({ ...it })));
   const { budget, currency } = bundle;
@@ -299,7 +304,13 @@ function BundleCard({ bundle }) {
     <div className="max-w-[85%] rounded-lg border border-stone-700 bg-neutral-900/80 p-4 text-sm shadow">
       <div className="mb-2 flex items-center gap-2 text-amber-500">
         <ShoppingBag size={15} />
-        <span className="text-[11px] font-semibold uppercase tracking-widest">Your bundle</span>
+        {bundle.label && tiered ? (
+          <span className="rounded-full bg-amber-600 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-neutral-950">
+            {bundle.label}
+          </span>
+        ) : (
+          <span className="text-[11px] font-semibold uppercase tracking-widest">Your bundle</span>
+        )}
         {edited && <span className="text-[10px] font-medium uppercase tracking-wide text-stone-500">· edited</span>}
         <span className="ml-auto text-[10px] font-medium uppercase tracking-wide text-stone-500">{currency}</span>
       </div>

@@ -72,11 +72,15 @@ small **"Demo · no AI"** badge so sample data is never mistaken for live output
 Set a real `ANTHROPIC_API_KEY` to switch to genuine AI responses automatically.
 
 ## The order card & reserving at the store
-When the assistant recommends a **final** bundle it calls a `recommend_bundle`
-tool (see `api/bundle.js`), so alongside its friendly message the app receives a
-structured, itemised bundle and renders it as an **order card** — line items, a
-total, and a budget bar (green under budget, red over). Using a tool rather than
-parsing the prose makes the card reliable.
+When the assistant recommends a **final** bundle it calls a `recommend_bundles`
+tool (see `api/bundle.js`), so alongside its friendly message the app receives one
+or more structured, itemised bundles and renders each as an **order card** — line
+items, a total, and a budget bar (green under budget, red over). Using a tool
+rather than parsing the prose makes the cards reliable.
+
+When it helps, the assistant offers **2-3 tiers** (e.g. Good / Better / Best, or
+Essentials / Recommended / Complete) — each rendered as its own labelled card the
+customer can compare, edit and reserve independently.
 
 The card is **interactive**: customers adjust quantities, remove items, or add an
 extra from the add-on picker (the `ADDONS` list in [`catalogue.js`](catalogue.js)),
