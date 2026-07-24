@@ -1,5 +1,6 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { FACTIONS as CATALOGUE_FACTIONS } from "../catalogue.js";
+import { rateLimit, logQuery } from "../datastore.js";
 
 // The Quartermaster: a conversational hobby-store assistant. The full catalogue lives
 // here server-side so the client never sees the key. Prices are synthetic (SGD).
@@ -175,27 +176,11 @@ const DEMO_MODE =
   process.env.DEMO_MODE === "1" ||
   process.env.DEMO_MODE === "true";
 
-// --- Basic in-memory per-IP rate limit -------------------------------------
-// NOTE: serverless instances are ephemeral and NOT shared, so this counter resets
-// on cold starts and doesn't coordinate across instances — it blunts casual abuse
-// but is not real protection. For real traffic use a shared store (e.g. Upstash).
+// --- Per-IP rate limit ------------------------------------------------------
+// Backed by Upstash Redis when configured (shared across all serverless
+// instances); falls back to in-memory otherwise. See datastore.js.
 const RATE_LIMIT = 20; // requests...
-const RATE_WINDOW_MS = 60_000; // ...per minute, per IP
-const hits = new Map();
-
-function rateLimited(ip) {
-  const now = Date.now();
-  if (hits.size > 5000) {
-    for (const [key, rec] of hits) if (now > rec.resetAt) hits.delete(key);
-  }
-  const rec = hits.get(ip);
-  if (!rec || now > rec.resetAt) {
-    hits.set(ip, { count: 1, resetAt: now + RATE_WINDOW_MS });
-    return false;
-  }
-  rec.count += 1;
-  return rec.count > RATE_LIMIT;
-}
+const RATE_WINDOW_SEC = 60; // ...per minute, per IP
 
 // --- Demo mode: scripted (no-LLM) reply so the prototype runs free ----------
 // Returns { text, bundles } — bundles is an array of structured order objects
@@ -321,13 +306,28 @@ function composeFallback(bundles) {
   return `Here's a starter bundle I'd recommend — **$${b.total}** in total${within}. Every bundle is staff-reviewed before purchase. Want me to adjust anything?`;
 }
 
+// Compact, privacy-light record of one completed turn for the store's query log:
+// the customer's latest message plus what was recommended. No full transcript.
+function logEntry(clean, bundles, demo) {
+  const lastUser = [...clean].reverse().find((m) => m.role === "user");
+  return {
+    q: (lastUser?.content || "").slice(0, 200),
+    recommended: bundles.length > 0,
+    options: bundles.map((b) => ({ label: b.label || null, total: b.total })),
+    budget: bundles[0]?.budget ?? null,
+    demo,
+  };
+}
+
 export default async function handler(req, res) {
   if (req.method !== "POST") {
     res.status(405).json({ error: "Method not allowed" });
     return;
   }
   const ip = String(req.headers["x-forwarded-for"] || "").split(",")[0].trim() || "unknown";
-  if (rateLimited(ip)) {
+  const rl = await rateLimit(ip, RATE_LIMIT, RATE_WINDOW_SEC);
+  if (rl.limited) {
+    if (rl.retryAfter) res.setHeader("Retry-After", String(rl.retryAfter));
     res.status(429).json({ error: "Too many requests. Please wait a minute and try again." });
     return;
   }
@@ -366,6 +366,7 @@ export default async function handler(req, res) {
       const { text, bundles } = demoReply(clean);
       send({ type: "text", delta: text });
       send({ type: "done", reply: text, bundles, demo: true });
+      await logQuery(logEntry(clean, bundles, true)).catch(() => {});
       res.end();
       return;
     }
@@ -398,6 +399,7 @@ export default async function handler(req, res) {
     // Canonical final text (fence-stripped / fallback) — client replaces the
     // streamed text with this on done.
     send({ type: "done", reply: reply || "…", bundles, demo: false });
+    await logQuery(logEntry(clean, bundles, false)).catch(() => {});
     res.end();
   } catch (e) {
     // If we haven't started streaming yet, a normal JSON error; otherwise emit an

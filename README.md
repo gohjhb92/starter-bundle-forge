@@ -58,10 +58,41 @@ Open the URL it prints (usually http://localhost:3000).
 - **Never commit the key.** It lives only in `.env.local` (git-ignored) and in
   Vercel's env vars. If a key is ever pushed, revoke it immediately — git history
   keeps the old value, so rotating is the only fix.
-- `api/bundle.js` includes a basic in-memory per-IP rate limit (10 req/min). It
-  blunts casual abuse but resets on cold starts and doesn't coordinate across
-  serverless instances — for real traffic, back it with a shared store like
-  Upstash Ratelimit. **A monthly spend cap on the key is still the real safeguard.**
+- `/api/bundle` enforces a per-IP rate limit (20 req/min, `Retry-After` on 429).
+  **Set the two Upstash env vars below** so the limit is shared across serverless
+  instances — without them it falls back to per-instance in-memory counting,
+  which resets on every cold start and barely limits anything in production.
+  **A monthly spend cap on the key is still the real safeguard.**
+
+## Production hardening (Upstash)
+Rate limiting and the query log both want a shared, persistent store. Create a
+free Redis database at https://upstash.com and set its REST credentials as env
+vars (locally in `.env`, in production via Vercel → Settings → Environment
+Variables):
+```
+UPSTASH_REDIS_REST_URL=https://your-db.upstash.io
+UPSTASH_REDIS_REST_TOKEN=your-rest-token
+```
+`datastore.js` uses them when present and **degrades gracefully to in-memory**
+when absent (and if Upstash is unreachable it fails open rather than blocking
+customers), so the app runs fine either way.
+
+## Query log (what customers are asking)
+Every completed turn is recorded so the store can see real demand — what people
+ask for, what budgets they name, and which bundles got recommended. Each entry is
+deliberately compact: a timestamp, the customer's latest message (truncated to
+200 chars), whether a recommendation was made, each option's label and total, the
+budget, and the demo flag. **No full transcripts.**
+
+Read it at:
+```
+GET /api/log?token=<LOG_TOKEN>&n=100
+```
+Set `LOG_TOKEN` (a long random string) to enable the endpoint. **If `LOG_TOKEN`
+is unset the route 404s**, so a deployment can never leak the log by accident.
+The response includes `"persistent": true|false` — `false` means Upstash isn't
+configured and entries are only per-instance in-memory (fine for a smoke test,
+useless in production). Configure Upstash for a log that actually survives.
 
 ## Model
 `api/bundle.js` uses `claude-haiku-4-5-20251001` — low cost per call, and this
